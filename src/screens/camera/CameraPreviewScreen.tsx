@@ -1,18 +1,31 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
 import {
   Camera,
   useCameraDevice,
   useCameraPermission,
   useMicrophonePermission,
+  PhotoFile,
 } from 'react-native-vision-camera';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useDetectionStore } from '@/stores/detectionStore';
 import { updateDeviceStatus } from '@/services/firebase/devices';
+import { createEvent } from '@/services/firebase/events';
 import { signOut } from '@/services/firebase/auth';
+import { shouldProcessFrame, resetMotionDetector } from '@/services/detection/motionDetector';
+import { detectPersonInImage } from '@/services/detection/personDetector';
+import { EventManager, ManagedEvent } from '@/services/detection/eventManager';
+import { startRecording } from '@/services/recording/clipRecorder';
+
+const eventManager = new EventManager();
 
 export function CameraPreviewScreen(): React.JSX.Element {
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const device = useCameraDevice('back');
+  const cameraRef = useRef<Camera>(null);
   const { hasPermission: hasCamPerm, requestPermission: requestCamPerm } =
     useCameraPermission();
   const { hasPermission: hasMicPerm, requestPermission: requestMicPerm } =
@@ -22,6 +35,78 @@ export function CameraPreviewScreen(): React.JSX.Element {
   const deviceId = useDeviceStore((s) => s.deviceId);
   const clearUser = useAuthStore((s) => s.clearUser);
   const clearDevice = useDeviceStore((s) => s.clearDevice);
+  const userId = useAuthStore((s) => s.user?.uid);
+
+  const isDetecting = useDetectionStore((s) => s.isDetecting);
+  const mode = useDetectionStore((s) => s.mode);
+  const lastDetection = useDetectionStore((s) => s.lastDetection);
+  const detectionCount = useDetectionStore((s) => s.detectionCount);
+  const setDetecting = useDetectionStore((s) => s.setDetecting);
+  const setLastDetection = useDetectionStore((s) => s.setLastDetection);
+  const incrementCount = useDetectionStore((s) => s.incrementCount);
+
+  const detectionLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const runDetectionCycle = useCallback(async () => {
+    if (!cameraRef.current || !isActive || !isDetecting) return;
+    if (!shouldProcessFrame()) return;
+
+    try {
+      const photo: PhotoFile = await cameraRef.current.takePhoto();
+
+      const result = await detectPersonInImage(
+        photo.path,
+        useDetectionStore.getState().mode === 'security' ? 0.5 : 0.4,
+      );
+
+      if (result) {
+        setLastDetection(result);
+        incrementCount();
+        eventManager.handleDetection(result, useDetectionStore.getState().mode);
+      }
+    } catch {
+      // Photo or detection failed — skip this cycle
+    }
+  }, [isActive, isDetecting, setLastDetection, incrementCount]);
+
+  // Start/stop detection loop
+  useEffect(() => {
+    if (isDetecting && isActive) {
+      detectionLoopRef.current = setInterval(runDetectionCycle, 2000);
+      resetMotionDetector();
+    }
+    return () => {
+      if (detectionLoopRef.current) {
+        clearInterval(detectionLoopRef.current);
+        detectionLoopRef.current = null;
+      }
+    };
+  }, [isDetecting, isActive, runDetectionCycle]);
+
+  // Handle events from event manager
+  useEffect(() => {
+    const handler = async (event: ManagedEvent) => {
+      if (!deviceId || !userId) return;
+
+      const clipPath =
+        event.alertLevel !== 'ignore'
+          ? await startRecording(cameraRef, event.timestamp, 10)
+          : null;
+
+      await createEvent({
+        deviceId,
+        userId,
+        type: event.type,
+        soundClass: event.soundClass,
+        confidence: event.confidence,
+        clipPath,
+        clipDurationSec: clipPath ? 10 : 0,
+      }).catch((err) => console.warn('Failed to log event:', err));
+    };
+
+    eventManager.onEvent(handler);
+    return () => eventManager.removeHandler(handler);
+  }, [deviceId, userId]);
 
   // Request permissions on mount
   useEffect(() => {
@@ -31,13 +116,9 @@ export function CameraPreviewScreen(): React.JSX.Element {
 
   // Update device status on mount/unmount
   useEffect(() => {
-    if (deviceId) {
-      updateDeviceStatus(deviceId, 'online');
-    }
+    if (deviceId) updateDeviceStatus(deviceId, 'online');
     return () => {
-      if (deviceId) {
-        updateDeviceStatus(deviceId, 'offline');
-      }
+      if (deviceId) updateDeviceStatus(deviceId, 'offline');
     };
   }, [deviceId]);
 
@@ -50,12 +131,15 @@ export function CameraPreviewScreen(): React.JSX.Element {
   }, []);
 
   async function handleSignOut() {
-    if (deviceId) {
-      await updateDeviceStatus(deviceId, 'offline');
-    }
+    setDetecting(false);
+    if (deviceId) await updateDeviceStatus(deviceId, 'offline');
     clearDevice();
     await signOut();
     clearUser();
+  }
+
+  function toggleDetection() {
+    setDetecting(!isDetecting);
   }
 
   if (!hasCamPerm || !hasMicPerm) {
@@ -88,30 +172,70 @@ export function CameraPreviewScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       <Camera
+        ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={isActive}
         audio={true}
+        photo={true}
       />
 
       {/* Status overlay */}
       <View style={styles.overlay}>
         <View style={styles.statusBar}>
           <View style={styles.statusRow}>
-            <View style={[styles.statusDot, styles.dotActive]} />
-            <Text style={styles.statusText}>Camera Active</Text>
+            <View
+              style={[
+                styles.statusDot,
+                isDetecting ? styles.dotDetecting : styles.dotActive,
+              ]}
+            />
+            <Text style={styles.statusText}>
+              {isDetecting ? `Detecting (${mode})` : 'Camera Active'}
+            </Text>
           </View>
-          <Text style={styles.statusHint}>
-            Detection will be enabled in Plan 2
-          </Text>
+          {isDetecting && (
+            <Text style={styles.statusHint}>
+              Events: {detectionCount}
+              {lastDetection
+                ? ` | Last: ${lastDetection.type} (${Math.round(lastDetection.confidence * 100)}%)`
+                : ''}
+            </Text>
+          )}
+          {!isDetecting && (
+            <Text style={styles.statusHint}>
+              Tap Start to begin detection
+            </Text>
+          )}
         </View>
       </View>
 
       {/* Bottom controls */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            isDetecting ? styles.stopButton : styles.startButton,
+          ]}
+          onPress={toggleDetection}
+        >
+          <Text style={styles.actionButtonText}>
+            {isDetecting ? 'Stop Detection' : 'Start Detection'}
+          </Text>
         </TouchableOpacity>
+
+        <View style={styles.bottomRow}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate('CameraSettings')}
+          >
+            <Text style={styles.secondaryText}>Settings</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleSignOut}>
+            <Text style={styles.secondaryText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -149,6 +273,9 @@ const styles = StyleSheet.create({
   dotActive: {
     backgroundColor: '#4caf50',
   },
+  dotDetecting: {
+    backgroundColor: '#ff9800',
+  },
   statusText: {
     color: '#fff',
     fontSize: 16,
@@ -166,13 +293,36 @@ const styles = StyleSheet.create({
     right: 16,
     alignItems: 'center',
   },
-  signOutButton: {
+  actionButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  startButton: {
+    backgroundColor: '#4caf50',
+  },
+  stopButton: {
+    backgroundColor: '#f44336',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  secondaryButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 8,
   },
-  signOutText: {
+  secondaryText: {
     color: '#fff',
     fontSize: 14,
   },
