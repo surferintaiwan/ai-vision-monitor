@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.tempproject"
+    namespace "com.aivisionmonitor"
     defaultConfig {
-        applicationId "com.tempproject"
+        applicationId "com.aivisionmonitor"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

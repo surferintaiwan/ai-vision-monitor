@@ -1,4 +1,4 @@
-package com.tempproject
+package com.aivisionmonitor
 
 import android.app.Application
 import android.content.res.Configuration
