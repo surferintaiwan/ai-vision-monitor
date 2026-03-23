@@ -9,3 +9,9 @@ ios/Pods/
 *.mobileprovision
 *.orig.*
 web-build/
+
+# Firebase credentials — NEVER commit these to public repos
+google-services.json
+GoogleService-Info.plist
+.env
+.env.*
