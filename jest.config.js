@@ -1,6 +1,6 @@
 module.exports = {
   preset: 'react-native',
-  setupFilesAfterSetup: ['@testing-library/jest-native/extend-expect'],
+  setupFilesAfterEnv: ['@testing-library/jest-native/extend-expect'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
