@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "temp-project",
+    "slug": "temp-project",
+    "version": "1.0.0",
+    "plugins": [
+      "react-native-vision-camera",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-firebase/messaging"
+    ]
+  }
+}
