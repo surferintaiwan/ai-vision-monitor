@@ -24,14 +24,19 @@ jest.mock('@react-native-firebase/firestore', () => {
   const mockWhere = jest.fn(() => ({ get: mockGet }));
   const mockDoc = jest.fn(() => ({ set: mockSet, update: mockUpdate }));
 
+  const mockFirestore = jest.fn(() => ({
+    collection: jest.fn(() => ({
+      doc: mockDoc,
+      where: mockWhere,
+    })),
+  }));
+  mockFirestore.FieldValue = {
+    serverTimestamp: jest.fn(() => 'mock-timestamp'),
+  };
+
   return {
     __esModule: true,
-    default: jest.fn(() => ({
-      collection: jest.fn(() => ({
-        doc: mockDoc,
-        where: mockWhere,
-      })),
-    })),
+    default: mockFirestore,
     FieldValue: {
       serverTimestamp: jest.fn(() => 'mock-timestamp'),
     },
