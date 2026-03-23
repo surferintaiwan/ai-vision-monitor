@@ -174,11 +174,11 @@ Project setup, authentication, navigation, and camera preview.
 - [x] Task 5: Device service (Firestore device registration)
 - [x] Task 6: Auth store (Zustand)
 - [x] Task 7: Device store (Zustand)
-- [ ] Task 8: Loading component
-- [ ] Task 9: Login screen
-- [ ] Task 10: Role select screen
-- [ ] Task 11: Camera preview screen
-- [ ] Task 12: Viewer device list screen (stub)
+- [x] Task 8: Loading component
+- [x] Task 9: Login screen
+- [x] Task 10: Role select screen
+- [x] Task 11: Camera preview screen
+- [x] Task 12: Viewer device list screen (stub)
 - [ ] Task 13: Root navigator (auth-gated)
 - [ ] Task 14: End-to-end verification
 
