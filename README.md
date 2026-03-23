@@ -283,9 +283,20 @@ Project setup, authentication, navigation, and camera preview.
 - [x] Task 13: Root navigator (auth-gated)
 - [x] Task 14: End-to-end verification
 
-### Plan 2: Detection Engine (Planned)
+### Plan 2: Detection Engine (Complete)
 
-Motion detection, ML Kit person/object detection, YAMNet sound classification, event manager, local recording.
+On-device AI detection pipeline with motion gating, ML Kit person detection, YAMNet sound classification, event management with debounce, local clip recording, and detection settings UI.
+
+- [x] Task 1: Detection types and mode configurations
+- [x] Task 2: Firestore events service
+- [x] Task 3: Detection store (Zustand)
+- [x] Task 4: Motion detector (frame skip gate)
+- [x] Task 5: ML Kit person detector
+- [x] Task 6: YAMNet sound detector with class mapping
+- [x] Task 7: Event manager (debounce + mode-based alert levels)
+- [x] Task 8: Local clip recorder
+- [x] Task 9: Camera preview detection integration
+- [x] Task 10: Camera settings screen with mode selection
 
 ### Plan 3: Streaming & Viewer (Planned)
 
