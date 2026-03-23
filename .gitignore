@@ -16,3 +16,6 @@ GoogleService-Info.plist
 .env
 .env.*
 !.env.example
+
+# ML model files (too large for git)
+assets/models/*.tflite
