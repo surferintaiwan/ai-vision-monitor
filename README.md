@@ -83,34 +83,96 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 
 ## Prerequisites
 
-- Node.js 18+
-- React Native development environment ([setup guide](https://reactnative.dev/docs/environment-setup))
-- Firebase project with Authentication, Firestore, and Cloud Messaging enabled
-- Xcode (for iOS) / Android Studio (for Android)
+- **Node.js 18+**
+- **Xcode** (for iOS) — install from Mac App Store
+- **Android Studio** (for Android) — provides Android SDK and Java Runtime
+- Firebase project (free Spark plan is sufficient)
 
 ## Installation
 
+### 1. Clone and Install Dependencies
+
 ```bash
-# Clone the repository
 git clone https://github.com/user/ai-vision-monitor.git
 cd ai-vision-monitor
-
-# Install dependencies
 npm install
-
-# iOS: Install CocoaPods
-cd ios && pod install && cd ..
 ```
 
-### Firebase Setup
+### 2. Android Studio Setup
 
-1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
-2. Enable **Authentication** with Google and Apple sign-in providers
-3. Enable **Cloud Firestore**
-4. Enable **Cloud Messaging**
-5. Download `google-services.json` → place in `android/app/`
-6. Download `GoogleService-Info.plist` → place in `ios/`
-7. Update `src/screens/LoginScreen.tsx` with your Web Client ID from Firebase Console
+Android Studio is required even though we don't use it directly — it provides the Android SDK and Java Runtime needed to build the app.
+
+```bash
+# Install via Homebrew
+brew install --cask android-studio
+```
+
+After installation, **open Android Studio once** and complete the setup wizard. This downloads the Android SDK automatically.
+
+Then add the following environment variables to `~/.zshrc`:
+
+```bash
+# Android SDK location
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+
+# Java Runtime bundled with Android Studio
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+```
+
+After editing, reload the config:
+
+```bash
+source ~/.zshrc
+```
+
+Verify the setup:
+
+```bash
+# Should print the Java version
+java -version
+
+# Should print the SDK path
+echo $ANDROID_HOME
+```
+
+### 3. Firebase Setup
+
+1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com) (free Spark plan)
+2. **Enable Authentication:**
+   - Go to Authentication → Sign-in method
+   - Enable **Google** — set a public-facing project name and support email, then save
+   - Enable **Apple** (for iOS sign-in)
+3. **Enable Cloud Firestore:** Create a database (start in test mode for development)
+4. **Enable Cloud Messaging** (for push notifications in Plan 3)
+
+#### Add Android App
+
+1. In Firebase Console → Project Settings → **Add app** → select Android
+2. Package name: `com.aivisionmonitor`
+3. Download `google-services.json` → place in `android/app/`
+4. Skip "Add Firebase SDK" step (already configured)
+
+#### Add iOS App
+
+1. In Firebase Console → Project Settings → **Add app** → select iOS
+2. Bundle ID: `com.aivisionmonitor`
+3. Download `GoogleService-Info.plist` → place in `ios/aivisionmonitor/`
+4. Skip "Add Firebase SDK" step (already configured)
+
+#### Configure Google Sign-In
+
+1. In Firebase Console → Authentication → Sign-in method → Google → expand **Web SDK configuration**
+2. Copy the **Web client ID** (format: `xxxx.apps.googleusercontent.com`)
+3. Open `src/screens/LoginScreen.tsx` and replace `YOUR_WEB_CLIENT_ID` with your actual Web client ID
+
+**Important:** `google-services.json`, `GoogleService-Info.plist`, and `.env` files are gitignored and will NOT be committed. Each developer must set up their own Firebase project.
+
+### 4. iOS CocoaPods (iOS only)
+
+```bash
+cd ios && pod install && cd ..
+```
 
 ### STUN/TURN Configuration
 
@@ -121,12 +183,25 @@ Edit `src/config/webrtc.ts` to set custom STUN/TURN endpoints.
 ## Running the App
 
 ```bash
-# Android
+# Android (requires USB-connected device or emulator)
 npx expo run:android
 
-# iOS
+# iOS (requires Xcode + Apple Developer account for physical devices)
 npx expo run:ios
 ```
+
+### Android Device Testing
+
+To test on a physical Android device:
+
+1. On your phone: **Settings** → **About phone** → **Software information** → tap **Build number** 7 times to enable Developer mode
+2. Go to **Settings** → **Developer options** → enable **USB debugging**
+3. Connect the phone to your Mac via USB cable
+4. Approve the "Allow USB debugging" prompt on your phone
+5. Verify connection: `adb devices`
+6. Run: `npx expo run:android`
+
+**Note:** Camera features require a physical device. The Android emulator does not have a real camera.
 
 ## Usage
 
