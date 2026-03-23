@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "temp-project",
-    "slug": "temp-project",
+    "name": "ai-vision-monitor",
+    "slug": "ai-vision-monitor",
     "version": "1.0.0",
     "plugins": [
       "react-native-vision-camera",
