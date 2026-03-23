@@ -143,15 +143,34 @@ echo $ANDROID_HOME
    - Go to Authentication → Sign-in method
    - Enable **Google** — set a public-facing project name and support email, then save
    - Enable **Apple** (for iOS sign-in)
-3. **Enable Cloud Firestore:** Create a database (start in test mode for development)
+3. **Enable Cloud Firestore:**
+   - Go to Firestore Database → **Create database**
+   - Select **Start in test mode** (for development; switch to production rules before launch)
+   - Choose a location close to your users (e.g., `asia-east1` for Taiwan)
+   - **Note:** The app requires Firestore to be created before it can register devices or navigate between screens. Without it, tapping Camera/Viewer on the role select screen will fail silently.
 4. **Enable Cloud Messaging** (for push notifications in Plan 3)
 
 #### Add Android App
 
 1. In Firebase Console → Project Settings → **Add app** → select Android
 2. Package name: `com.aivisionmonitor`
-3. Download `google-services.json` → place in `android/app/`
-4. Skip "Add Firebase SDK" step (already configured)
+3. **Add SHA-1 fingerprint** — Firebase uses SHA-1 as your app's identity fingerprint to verify that API requests (especially Google Sign-In) come from your authorized app. Get it by running:
+   ```bash
+   cd android && ./gradlew signingReport
+   ```
+   Copy the `SHA1` value from the `debug` variant output, then paste it into the SHA certificate fingerprints field in Firebase Console.
+4. Download `google-services.json` → place in `android/app/`
+   - **Important:** Make sure to download this **after** adding the SHA-1 fingerprint. The file must contain your `oauth_client` entries for Google Sign-In to work.
+5. Skip "Add Firebase SDK" step (already configured)
+
+#### Google Services Gradle Plugin
+
+The Android build requires the Google Services Gradle plugin to read `google-services.json` and auto-initialize Firebase. This is already configured in the project:
+
+- `android/build.gradle` — includes `com.google.gms:google-services` classpath
+- `android/app/build.gradle` — applies `com.google.gms.google-services` plugin
+
+Without this plugin, the app will crash at startup with: `No Firebase App '[DEFAULT]' has been created`. If you see this error, verify both files have the plugin configured.
 
 #### Add iOS App
 
@@ -164,9 +183,16 @@ echo $ANDROID_HOME
 
 1. In Firebase Console → Authentication → Sign-in method → Google → expand **Web SDK configuration**
 2. Copy the **Web client ID** (format: `xxxx.apps.googleusercontent.com`)
-3. Open `src/screens/LoginScreen.tsx` and replace `YOUR_WEB_CLIENT_ID` with your actual Web client ID
+3. Create a `.env` file in the project root (use `.env.example` as a template):
+   ```bash
+   cp .env.example .env
+   ```
+4. Paste your Web client ID into `.env`:
+   ```
+   GOOGLE_WEB_CLIENT_ID=your-actual-client-id.apps.googleusercontent.com
+   ```
 
-**Important:** `google-services.json`, `GoogleService-Info.plist`, and `.env` files are gitignored and will NOT be committed. Each developer must set up their own Firebase project.
+**Important:** `google-services.json`, `GoogleService-Info.plist`, and `.env` files are gitignored and will NOT be committed. Each developer must set up their own Firebase project and `.env` file.
 
 ### 4. iOS CocoaPods (iOS only)
 

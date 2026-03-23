@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDeviceStore } from '@/stores/deviceStore';
@@ -20,17 +20,22 @@ export function RoleSelectScreen(): React.JSX.Element {
   async function handleSelectRole(role: Role) {
     if (!user) return;
 
-    const deviceId = generateDeviceId();
-    const name = role === 'camera' ? 'New Camera' : 'Viewer';
+    try {
+      const deviceId = generateDeviceId();
+      const name = role === 'camera' ? 'New Camera' : 'Viewer';
 
-    await registerDevice(deviceId, user.uid, name, role);
-    setRole(role);
-    setDeviceId(deviceId);
+      await registerDevice(deviceId, user.uid, name, role);
+      setRole(role);
+      setDeviceId(deviceId);
 
-    if (role === 'camera') {
-      navigation.replace('CameraPreview');
-    } else {
-      navigation.replace('DeviceList');
+      if (role === 'camera') {
+        navigation.replace('CameraPreview');
+      } else {
+        navigation.replace('DeviceList');
+      }
+    } catch (err: any) {
+      console.error('handleSelectRole error:', err);
+      Alert.alert('Error', err.message ?? 'Failed to register device');
     }
   }
 
