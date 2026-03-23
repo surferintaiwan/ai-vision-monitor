@@ -163,7 +163,7 @@ ai-vision-monitor/
 
 ## Development Progress
 
-### Plan 1: Foundation (In Progress)
+### Plan 1: Foundation (Complete)
 
 Project setup, authentication, navigation, and camera preview.
 
@@ -179,8 +179,8 @@ Project setup, authentication, navigation, and camera preview.
 - [x] Task 10: Role select screen
 - [x] Task 11: Camera preview screen
 - [x] Task 12: Viewer device list screen (stub)
-- [ ] Task 13: Root navigator (auth-gated)
-- [ ] Task 14: End-to-end verification
+- [x] Task 13: Root navigator (auth-gated)
+- [x] Task 14: End-to-end verification
 
 ### Plan 2: Detection Engine (Planned)
 

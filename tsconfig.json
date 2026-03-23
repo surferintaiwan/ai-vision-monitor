@@ -5,7 +5,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "types": ["react-native", "jest"]
   },
-  "include": ["src/**/*", "App.tsx"]
+  "include": ["src/**/*", "App.tsx"],
+  "exclude": ["src/**/__tests__/**"]
 }
