@@ -170,10 +170,10 @@ Project setup, authentication, navigation, and camera preview.
 - [x] Task 1: Project initialization (Expo bare workflow + dependencies)
 - [x] Task 2: TypeScript type definitions
 - [x] Task 3: Firebase and WebRTC configuration
-- [ ] Task 4: Auth service (Firebase Auth with Google/Apple)
-- [ ] Task 5: Device service (Firestore device registration)
-- [ ] Task 6: Auth store (Zustand)
-- [ ] Task 7: Device store (Zustand)
+- [x] Task 4: Auth service (Firebase Auth with Google/Apple)
+- [x] Task 5: Device service (Firestore device registration)
+- [x] Task 6: Auth store (Zustand)
+- [x] Task 7: Device store (Zustand)
 - [ ] Task 8: Loading component
 - [ ] Task 9: Login screen
 - [ ] Task 10: Role select screen
