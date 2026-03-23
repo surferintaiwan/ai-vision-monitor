@@ -6,6 +6,7 @@ import { onAuthStateChange } from '@/services/firebase/auth';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { RoleSelectScreen } from '@/screens/RoleSelectScreen';
 import { CameraPreviewScreen } from '@/screens/camera/CameraPreviewScreen';
+import { CameraSettingsScreen } from '@/screens/camera/CameraSettingsScreen';
 import { DeviceListScreen } from '@/screens/viewer/DeviceListScreen';
 import { LoadingScreen } from '@/components/LoadingScreen';
 
@@ -13,6 +14,7 @@ export type RootStackParamList = {
   Login: undefined;
   RoleSelect: undefined;
   CameraPreview: undefined;
+  CameraSettings: undefined;
   DeviceList: undefined;
 };
 
@@ -54,6 +56,10 @@ export function RootNavigator(): React.JSX.Element {
             <Stack.Screen
               name="CameraPreview"
               component={CameraPreviewScreen}
+            />
+            <Stack.Screen
+              name="CameraSettings"
+              component={CameraSettingsScreen}
             />
             <Stack.Screen name="DeviceList" component={DeviceListScreen} />
           </>
