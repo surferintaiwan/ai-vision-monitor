@@ -11,14 +11,9 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { appleAuth } from '@invertase/react-native-apple-authentication';
 import { signInWithGoogle, signInWithApple } from '@/services/firebase/auth';
 import { useAuthStore } from '@/stores/authStore';
+import { GOOGLE_WEB_CLIENT_ID } from '@env';
 
-// Configure Google Sign-In — REQUIRED: replace with your webClientId from Firebase Console
-// Find it at: Firebase Console → Authentication → Sign-in method → Google → Web SDK configuration → Web client ID
-const WEB_CLIENT_ID = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
-if (WEB_CLIENT_ID.startsWith('YOUR_')) {
-  console.warn('Google Sign-In: Replace YOUR_WEB_CLIENT_ID in LoginScreen.tsx with your Firebase web client ID');
-}
-GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
+GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
 
 export function LoginScreen(): React.JSX.Element {
   const [loading, setLoading] = useState(false);
