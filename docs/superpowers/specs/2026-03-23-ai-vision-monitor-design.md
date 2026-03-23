@@ -185,6 +185,7 @@ When a detection triggers:
 | AI Motion | Custom frame diff | Pixel difference between frames |
 | AI Sound | react-native-audio-api + TFLite (YAMNet) | Audio capture + sound classification |
 | Firebase | @react-native-firebase/* | Auth, Firestore, FCM |
+| Cloud Function | Firebase Cloud Functions | Trigger FCM push on new Firestore events |
 | Local Storage | react-native-fs | Event clip file management |
 | State | Zustand | Lightweight state management |
 | Background | react-native-background-actions | Keep camera running in background |
@@ -208,6 +209,7 @@ ai-vision-monitor/
   │   ├── navigation/       # Route configuration
   │   ├── config/           # STUN/TURN and other configurable values
   │   └── utils/            # Utility functions
+  ├── functions/            # Firebase Cloud Functions (FCM trigger)
   ├── app.json
   ├── package.json
   └── tsconfig.json
@@ -236,3 +238,8 @@ ai-vision-monitor/
 
 - **Multiple viewers** — same account can view from multiple devices simultaneously, each with independent WebRTC connection
 - **Camera offline** — viewer shows offline status with last-seen time; detection events during offline sync when camera reconnects
+
+### Clip Playback
+
+- **Transfer mechanism** — viewer requests clip playback over WebRTC data channel; camera phone reads the local MP4 and streams it to the viewer
+- **Camera offline during playback request** — viewer sees "camera offline, clip unavailable" with the event metadata still visible
