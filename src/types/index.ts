@@ -8,6 +8,24 @@ export type EventType = 'person' | 'motion' | 'sound';
 
 export type AlertLevel = 'alert' | 'notify' | 'record' | 'ignore';
 
+export type SoundClass = 'baby_cry' | 'dog_bark' | 'glass_break' | 'cat_meow';
+
+export interface DetectionResult {
+  type: EventType;
+  confidence: number;
+  soundClass: SoundClass | null;
+  timestamp: number;
+}
+
+export interface ModeConfig {
+  person: AlertLevel;
+  motion: AlertLevel;
+  baby_cry: AlertLevel;
+  dog_bark: AlertLevel;
+  glass_break: AlertLevel;
+  cat_meow: AlertLevel;
+}
+
 export interface User {
   uid: string;
   email: string | null;
