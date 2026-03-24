@@ -49,7 +49,6 @@ export function CameraPreviewScreen(): React.JSX.Element {
 
   const runDetectionCycle = useCallback(async () => {
     if (!cameraRef.current || !isActive || !isDetecting) return;
-    if (!shouldProcessFrame()) return;
 
     try {
       const photo: PhotoFile = await cameraRef.current.takePhoto();
@@ -178,6 +177,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
         isActive={isActive}
         audio={true}
         photo={true}
+        video={true}
       />
 
       {/* Status overlay */}

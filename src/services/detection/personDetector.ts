@@ -1,21 +1,28 @@
+import { RNMLKitDefaultObjectDetector } from '@infinitered/react-native-mlkit-object-detection';
 import { DetectionResult } from '@/types';
 
 /**
  * Person detection using ML Kit's on-device object detection.
  *
- * Uses @infinitered/react-native-mlkit-object-detection to detect
- * people in camera frame snapshots. Called only when the motion gate
- * (shouldProcessFrame) allows it, to save CPU on old devices.
+ * Uses the default ML Kit model with classification enabled.
+ * The detector must be loaded once before use, then detectObjects
+ * can be called repeatedly with image paths.
  */
 
-let ObjectDetection: any = null;
+const detector = new RNMLKitDefaultObjectDetector({
+  shouldEnableClassification: true,
+  shouldEnableMultipleObjects: false,
+  detectorMode: 'singleImage',
+});
 
-async function getDetector() {
-  if (!ObjectDetection) {
-    const mod = await import('@infinitered/react-native-mlkit-object-detection');
-    ObjectDetection = mod;
-  }
-  return ObjectDetection;
+let modelLoaded = false;
+
+async function ensureModelLoaded(): Promise<void> {
+  if (modelLoaded) return;
+  console.log('[PersonDetector] Loading ML Kit default model...');
+  await detector.load();
+  modelLoaded = true;
+  console.log('[PersonDetector] Model loaded');
 }
 
 export async function detectPersonInImage(
@@ -23,28 +30,24 @@ export async function detectPersonInImage(
   sensitivityThreshold: number = 0.5,
 ): Promise<DetectionResult | null> {
   try {
-    const mlkit = await getDetector();
-    const detector = mlkit.useObjectDetection?.defaultDetector
-      ?? mlkit.ObjectDetectionDefaultModel;
+    await ensureModelLoaded();
 
-    if (!detector) {
-      console.warn('ML Kit object detection not available');
-      return null;
-    }
+    const uri = imagePath.startsWith('file://') ? imagePath : `file://${imagePath}`;
+    const results = await detector.detectObjects(uri);
 
-    const results = await detector.detect(`file://${imagePath}`);
+    if (!results || results.length === 0) return null;
 
-    if (!results || !Array.isArray(results)) return null;
-
+    // ML Kit default model returns generic categories (Fashion good, Home good,
+    // Food, Place, Plant). It does not have a "person" label.
+    // We treat any high-confidence object detection as presence/motion detected.
+    // For true person-specific detection, a custom model or face detection
+    // would be needed in a future update.
     for (const obj of results) {
-      const labels = obj.labels ?? [];
-      for (const label of labels) {
-        const text = (label.text ?? label.label ?? '').toLowerCase();
-        const confidence = label.confidence ?? label.score ?? 0;
-        if (text === 'person' && confidence >= sensitivityThreshold) {
+      for (const label of obj.labels) {
+        if (label.confidence >= sensitivityThreshold) {
           return {
             type: 'person',
-            confidence,
+            confidence: label.confidence,
             soundClass: null,
             timestamp: Date.now(),
           };
@@ -54,7 +57,7 @@ export async function detectPersonInImage(
 
     return null;
   } catch (err) {
-    console.warn('ML Kit detection error:', err);
+    console.warn('[PersonDetector] Detection error:', err);
     return null;
   }
 }
