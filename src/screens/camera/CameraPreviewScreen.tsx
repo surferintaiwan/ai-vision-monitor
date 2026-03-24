@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
-import ViewShot from 'react-native-view-shot';
+import { captureScreen } from 'react-native-view-shot';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDeviceStore } from '@/stores/deviceStore';
@@ -35,8 +35,6 @@ const eventManager = new EventManager();
 
 export function CameraPreviewScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const viewShotRef = useRef<ViewShot>(null);
-
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isActive, setIsActive] = useState(true);
   const deviceId = useDeviceStore((s) => s.deviceId);
@@ -60,11 +58,11 @@ export function CameraPreviewScreen(): React.JSX.Element {
   const detectionLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const runDetectionCycle = useCallback(async () => {
-    if (!viewShotRef.current || !isActive || !isDetecting) return;
+    if (!isActive || !isDetecting) return;
 
     try {
-      // Capture the camera preview as a JPEG for ML Kit detection
-      const uri = await (viewShotRef.current as any).capture();
+      // Capture the entire screen as JPEG (captureScreen works with SurfaceView)
+      const uri = await captureScreen({ format: 'jpg', quality: 0.6 });
       if (!uri) return;
 
       const result = await detectPersonInImage(
@@ -77,8 +75,8 @@ export function CameraPreviewScreen(): React.JSX.Element {
         incrementCount();
         eventManager.handleDetection(result, useDetectionStore.getState().mode);
       }
-    } catch {
-      // Capture or detection failed — skip this cycle
+    } catch (err) {
+      console.warn('[Detection] Capture/detection failed:', err);
     }
   }, [isActive, isDetecting, setLastDetection, incrementCount]);
 
@@ -226,21 +224,19 @@ export function CameraPreviewScreen(): React.JSX.Element {
   return (
     <View style={styles.container}>
       {/* Camera preview via WebRTC local stream */}
-      <ViewShot ref={viewShotRef} style={StyleSheet.absoluteFill} options={{ format: 'jpg', quality: 0.6 }}>
-        {streamUrl ? (
-          <RTCView
-            streamURL={streamUrl}
-            style={StyleSheet.absoluteFill}
-            objectFit="cover"
-            mirror={false}
-            zOrder={0}
-          />
-        ) : (
-          <View style={styles.loadingCamera}>
-            <Text style={styles.loadingText}>Starting camera...</Text>
-          </View>
-        )}
-      </ViewShot>
+      {streamUrl ? (
+        <RTCView
+          streamURL={streamUrl}
+          style={StyleSheet.absoluteFill}
+          objectFit="cover"
+          mirror={false}
+          zOrder={0}
+        />
+      ) : (
+        <View style={styles.loadingCamera}>
+          <Text style={styles.loadingText}>Starting camera...</Text>
+        </View>
+      )}
 
       {/* Status overlay */}
       <View style={styles.overlay}>
