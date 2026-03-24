@@ -9,6 +9,7 @@ import { CameraPreviewScreen } from '@/screens/camera/CameraPreviewScreen';
 import { CameraSettingsScreen } from '@/screens/camera/CameraSettingsScreen';
 import { DeviceListScreen } from '@/screens/viewer/DeviceListScreen';
 import { LiveViewScreen } from '@/screens/viewer/LiveViewScreen';
+import { EventListScreen } from '@/screens/viewer/EventListScreen';
 import { LoadingScreen } from '@/components/LoadingScreen';
 
 export type RootStackParamList = {
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   CameraSettings: undefined;
   DeviceList: undefined;
   LiveView: { cameraDeviceId: string };
+  EventList: { cameraDeviceId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -65,6 +67,7 @@ export function RootNavigator(): React.JSX.Element {
             />
             <Stack.Screen name="DeviceList" component={DeviceListScreen} />
             <Stack.Screen name="LiveView" component={LiveViewScreen} />
+            <Stack.Screen name="EventList" component={EventListScreen} />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />

@@ -39,26 +39,33 @@ export function DeviceListScreen(): React.JSX.Element {
 
   function renderCamera({ item }: { item: Device }) {
     return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => navigation.navigate('LiveView', { cameraDeviceId: item.id })}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardName}>{item.name}</Text>
-          <View
-            style={[
-              styles.statusDot,
-              item.status === 'online' ? styles.online : styles.offline,
-            ]}
-          />
-        </View>
-        <Text style={styles.cardMode}>
-          Mode: {item.mode} | Status: {item.status}
-        </Text>
-        <Text style={styles.cardHint}>
-          {item.status === 'online' ? 'Tap to view live stream' : 'Camera is offline'}
-        </Text>
-      </TouchableOpacity>
+      <View style={styles.card}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('LiveView', { cameraDeviceId: item.id })}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardName}>{item.name}</Text>
+            <View
+              style={[
+                styles.statusDot,
+                item.status === 'online' ? styles.online : styles.offline,
+              ]}
+            />
+          </View>
+          <Text style={styles.cardMode}>
+            Mode: {item.mode} | Status: {item.status}
+          </Text>
+          <Text style={styles.cardHint}>
+            {item.status === 'online' ? 'Tap to view live stream' : 'Camera is offline'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.eventsButton}
+          onPress={() => navigation.navigate('EventList', { cameraDeviceId: item.id })}
+        >
+          <Text style={styles.eventsButtonText}>View Events</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
@@ -144,6 +151,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     fontStyle: 'italic',
+  },
+  eventsButton: {
+    marginTop: 10,
+    backgroundColor: 'rgba(74,144,217,0.2)',
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  eventsButtonText: {
+    color: '#4A90D9',
+    fontSize: 13,
+    fontWeight: '600',
   },
   emptyState: {
     flex: 1,
