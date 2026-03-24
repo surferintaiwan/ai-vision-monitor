@@ -131,16 +131,24 @@ export function CameraPreviewScreen(): React.JSX.Element {
     return () => subscription.remove();
   }, []);
 
-  // Set up WebRTC: grab camera + streaming session
+  // Set up WebRTC: grab camera + streaming session (auto-reconnect on disconnect)
   useEffect(() => {
     if (!deviceId) return;
 
     let unsubAnswer: (() => void) | null = null;
     let unsubCandidates: (() => void) | null = null;
     let currentSessionId: string | null = null;
+    let mounted = true;
 
     async function setupStreaming() {
       try {
+        // Clean up previous session
+        unsubAnswer?.();
+        unsubCandidates?.();
+        if (currentSessionId) await closeSession(currentSessionId).catch(() => {});
+        closePeerConnection();
+
+        if (!mounted) return;
         setConnectionStatus('connecting');
 
         // Create signaling session
@@ -155,9 +163,16 @@ export function CameraPreviewScreen(): React.JSX.Element {
             }
           },
           onConnectionStateChange: (state) => {
-            if (state === 'connected') setConnectionStatus('connected');
-            else if (state === 'disconnected') setConnectionStatus('disconnected');
-            else if (state === 'failed') setConnectionStatus('failed');
+            if (state === 'connected') {
+              setConnectionStatus('connected');
+            } else if (state === 'disconnected' || state === 'failed') {
+              setConnectionStatus(state);
+              // Viewer disconnected — rebuild session so next viewer can connect
+              console.log('[Streaming] Viewer disconnected, rebuilding session...');
+              setTimeout(() => {
+                if (mounted) setupStreaming();
+              }, 2000);
+            }
           },
         });
 
@@ -167,7 +182,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
 
         // Save local stream for RTCView preview
         const stream = await getLocalStream();
-        setLocalStream(stream);
+        if (mounted) setLocalStream(stream);
 
         setConnectionStatus('idle');
 
@@ -198,6 +213,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
     setupStreaming();
 
     return () => {
+      mounted = false;
       unsubAnswer?.();
       unsubCandidates?.();
       if (currentSessionId) closeSession(currentSessionId).catch(() => {});
