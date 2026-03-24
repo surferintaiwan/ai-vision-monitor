@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { RTCView } from 'react-native-webrtc';
+import InCallManager from 'react-native-incall-manager';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useStreamStore } from '@/stores/streamStore';
 import { useDeviceStore } from '@/stores/deviceStore';
@@ -35,6 +36,16 @@ export function LiveViewScreen(): React.JSX.Element {
   const setRemoteStream = useStreamStore((s) => s.setRemoteStream);
   const setSessionId = useStreamStore((s) => s.setSessionId);
   const resetStream = useStreamStore((s) => s.reset);
+
+  // Route audio to loudspeaker instead of earpiece
+  useEffect(() => {
+    InCallManager.start({ media: 'video' });
+    InCallManager.setForceSpeakerphoneOn(true);
+    return () => {
+      InCallManager.setForceSpeakerphoneOn(false);
+      InCallManager.stop();
+    };
+  }, []);
 
   useEffect(() => {
     let unsubOffer: (() => void) | null = null;
