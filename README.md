@@ -217,6 +217,14 @@ npx expo run:android
 npx expo run:ios
 ```
 
+**Important:** Debug builds load JavaScript from the Metro dev server over WiFi. You must keep `npx expo start` running (it launches automatically with `expo run:android`/`run:ios`). If you later open the app without the dev server running, it will show an "unable to load script" error. To fix this, start the dev server first:
+
+```bash
+npx expo start
+```
+
+The device and your development machine must be on the same WiFi network.
+
 ### Android Device Testing
 
 To test on a physical Android device:
@@ -263,6 +271,8 @@ To test the camera/viewer flow simultaneously on two Android phones, use WiFi AD
    ```
 
 **Tip:** Find your phone's IP address in **Settings** → **Wi-Fi** → tap your network → **IP address**. Both phones must be on the same WiFi network as your development machine.
+
+**Important:** When using `adb install` to sideload the APK directly, the Metro dev server (`npx expo start`) must be running for the app to load. Debug builds fetch JavaScript from the dev server over WiFi — without it, the app will show an "unable to load script" error.
 
 ## Usage
 
