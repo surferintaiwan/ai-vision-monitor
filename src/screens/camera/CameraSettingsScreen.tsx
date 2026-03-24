@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useDetectionStore } from '@/stores/detectionStore';
 import { useDeviceStore } from '@/stores/deviceStore';
@@ -48,6 +49,7 @@ const ALERT_LEVEL_COLORS: Record<AlertLevel, string> = {
 
 export function CameraSettingsScreen(): React.JSX.Element {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const mode = useDetectionStore((s) => s.mode);
   const setMode = useDetectionStore((s) => s.setMode);
   const deviceId = useDeviceStore((s) => s.deviceId);
@@ -64,7 +66,7 @@ export function CameraSettingsScreen(): React.JSX.Element {
   const currentConfig = DETECTION_MODES[mode];
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { paddingBottom: insets.bottom + 16 }]} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
       <Text style={styles.title}>Detection Settings</Text>
 
       <Text style={styles.sectionTitle}>Detection Mode</Text>
