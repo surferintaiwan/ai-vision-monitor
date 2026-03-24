@@ -71,7 +71,7 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 | Navigation | React Navigation | Screen routing |
 | State | Zustand | Lightweight state management |
 | Camera | react-native-webrtc (getUserMedia) | Camera capture via WebRTC |
-| Frame Capture | react-native-view-shot (captureScreen) | Snapshot frames for ML Kit detection |
+| Frame Capture | PixelCopy native module | Snapshot frames for ML Kit detection (captures SurfaceView) |
 | Streaming | react-native-webrtc | P2P video/audio via WebRTC |
 | AI Vision | Google ML Kit (react-native-mlkit) | On-device person/object detection |
 | AI Sound | TensorFlow Lite (YAMNet) | On-device sound classification |
@@ -294,6 +294,7 @@ ai-vision-monitor/
 │   │   ├── firebase/     # Auth, Firestore, FCM
 │   │   ├── webrtc/       # P2P connection management
 │   │   ├── detection/    # ML Kit + YAMNet + Motion Diff
+│   │   ├── native/       # Custom native module bridges (PixelCopy)
 │   │   └── recording/    # Event clip recording
 │   ├── stores/           # Zustand state management
 │   ├── hooks/            # Custom hooks
@@ -345,7 +346,7 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
 
 #### Known Limitations & Notes
 
-- **ML Kit default model** — The default ML Kit object detection model classifies generic categories (Fashion good, Home good, Food, Place, Plant) rather than "person" specifically. Currently any high-confidence object detection is treated as presence detection. For true person-specific detection, a future update should integrate ML Kit Face Detection or a custom TFLite model (e.g., MobileNet SSD).
+- **ML Kit default model** — The default ML Kit object detection model classifies generic categories (Fashion good, Home good, Food, Place, Plant) rather than "person" specifically. Labels are often empty in `singleImage` mode, so detection uses **bounding box center-point movement** between frames as a motion proxy: when the detected object's center shifts more than 60px after a stable baseline, it triggers a detection event. For true person-specific detection, a future update should integrate ML Kit Face Detection or a custom TFLite model (e.g., MobileNet SSD).
 - **YAMNet model file** — The YAMNet TFLite model (`assets/models/yamnet.tflite`, ~3.9MB) is gitignored due to its size. After cloning, download it manually:
   ```bash
   mkdir -p assets/models
@@ -353,7 +354,7 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
     "https://tfhub.dev/google/lite-model/yamnet/classification/tflite/1?lite-format=tflite"
   ```
 - **Sound detection** — The YAMNet classification logic is implemented but audio capture integration (`react-native-audio-api`) is deferred. The package caused Android native build failures (missing codegen/JNI directory) and was removed. Sound detection will be wired up in a future update when the package compatibility is resolved.
-- **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames using `captureScreen` from `react-native-view-shot` (full-screen capture) rather than `ViewShot` component wrapping, because `ViewShot` cannot capture `SurfaceView`/`RTCView` on Android. This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
+- **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames using a custom **PixelCopy native module** (`ScreenCaptureModule.kt`) that finds the SurfaceView in the view hierarchy and uses Android's `PixelCopy.request()` to capture its content. Standard screenshot APIs (`captureScreen`, `ViewShot`) cannot capture SurfaceView/RTCView on Android — they render on a separate hardware surface. This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
 - **Clip recording disabled** — Local clip recording is currently disabled. It previously depended on VisionCamera's `startRecording` API, which was removed during the camera unification refactor. A replacement recording mechanism is planned.
 - **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with `captureScreen` snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
