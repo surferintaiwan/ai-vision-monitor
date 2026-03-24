@@ -49,11 +49,13 @@ export function onAnswer(
   sessionId: string,
   callback: (answer: string) => void,
 ): () => void {
+  let handled = false;
   return sessionsCollection()
     .doc(sessionId)
     .onSnapshot((snapshot) => {
       const data = snapshot.data();
-      if (data?.answer) {
+      if (data?.answer && !handled) {
+        handled = true;
         callback(data.answer);
       }
     });
@@ -63,11 +65,13 @@ export function onOffer(
   sessionId: string,
   callback: (offer: string) => void,
 ): () => void {
+  let handled = false;
   return sessionsCollection()
     .doc(sessionId)
     .onSnapshot((snapshot) => {
       const data = snapshot.data();
-      if (data?.offer) {
+      if (data?.offer && !handled) {
+        handled = true;
         callback(data.offer);
       }
     });
