@@ -281,6 +281,54 @@ To test the camera/viewer flow simultaneously on two Android phones, use WiFi AD
 3. **Viewer device** (primary phone): Select "Viewer" mode → see your paired cameras → tap to view live stream
 4. **Configure detection**: On the camera device, choose a detection mode (Security / Baby / Pet / Custom) and adjust sensitivity
 
+## Firestore Data Model
+
+```
+firestore/
+├── users/{userId}
+│   └── fcmTokens: { [deviceId]: "token_string" }  # FCM push tokens per device
+│
+├── devices/{deviceId}
+│   ├── userId: string              # Owner (Firebase Auth UID)
+│   ├── name: string                # Display name (e.g. "Living Room")
+│   ├── role: "camera" | "viewer"
+│   ├── mode: "security" | "baby" | "pet" | "custom"
+│   ├── status: "online" | "offline"
+│   ├── lastSeen: Timestamp
+│   └── settings:
+│       ├── motionSensitivity: number (0-1)
+│       ├── soundSensitivity: number (0-1)
+│       ├── personSensitivity: number (0-1)
+│       ├── recordingDurationSec: number
+│       └── videoQuality: "low" | "medium" | "high"
+│
+├── events/{eventId}
+│   ├── deviceId: string            # Which camera triggered this
+│   ├── userId: string              # Owner
+│   ├── type: "person" | "motion" | "sound"
+│   ├── soundClass: string | null   # e.g. "baby_cry", "dog_bark"
+│   ├── confidence: number (0-1)
+│   ├── timestamp: Timestamp
+│   ├── clipPath: string | null     # Local file path (currently unused)
+│   └── clipDurationSec: number
+│
+└── sessions/{sessionId}            # WebRTC signaling
+    ├── cameraDeviceId: string
+    ├── viewerDeviceId: string | null
+    ├── offer: string | null        # SDP offer from camera
+    ├── answer: string | null       # SDP answer from viewer
+    ├── status: "waiting" | "connected" | "closed"
+    ├── createdAt: Timestamp
+    └── candidates/{candidateId}    # ICE candidates subcollection
+        ├── candidate: string
+        ├── sdpMLineIndex: number
+        ├── sdpMid: string
+        ├── from: "camera" | "viewer"
+        └── createdAt: Timestamp
+```
+
+**Data ownership:** All data is scoped by `userId` (Firebase Auth UID). A user's viewer device queries `devices` and `events` by `userId` to see only their own cameras and detection history. Sessions are looked up by `cameraDeviceId`.
+
 ## Project Structure
 
 ```
