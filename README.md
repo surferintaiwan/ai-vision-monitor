@@ -324,6 +324,7 @@ WebRTC P2P streaming, Firestore signaling, viewer live view, FCM push notificati
 - [x] Task 6: Event list screen (detection history timeline)
 - [x] Task 7: FCM push notifications (messaging service + Cloud Function trigger)
 - [ ] Task 8: End-to-end testing
+- [ ] Task 9: TURN server integration testing (Cloudflare Calls credentials + cross-network verification)
 
 #### Cloud Functions Setup
 
