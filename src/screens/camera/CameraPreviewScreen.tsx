@@ -23,6 +23,7 @@ import { useStreamStore } from '@/stores/streamStore';
 import {
   createPeerConnection,
   createOffer,
+  addLocalStream,
   handleAnswer,
   addIceCandidate,
   closePeerConnection,
@@ -176,8 +177,10 @@ export function CameraPreviewScreen(): React.JSX.Element {
           },
           onConnectionStateChange: (state) => {
             if (state === 'connected') setConnectionStatus('connected');
-            else if (state === 'disconnected') setConnectionStatus('disconnected');
-            else if (state === 'failed') setConnectionStatus('failed');
+            else if (state === 'disconnected' || state === 'failed') {
+              setConnectionStatus(state === 'disconnected' ? 'disconnected' : 'failed');
+              setIsActive(true); // Restore VisionCamera when viewer disconnects
+            }
           },
         });
 
@@ -186,13 +189,17 @@ export function CameraPreviewScreen(): React.JSX.Element {
         await setOffer(currentSessionId, offer.sdp!);
         setConnectionStatus('idle');
 
-        // Listen for viewer answer
+        // Listen for viewer answer — when viewer connects, grab camera for streaming
         unsubAnswer = onAnswer(currentSessionId, async (answerSdp) => {
           try {
+            // Deactivate VisionCamera so WebRTC can use the camera
+            setIsActive(false);
+            await addLocalStream();
             await handleAnswer(answerSdp);
             setConnectionStatus('connected');
           } catch (err) {
             console.warn('Failed to handle answer:', err);
+            setIsActive(true); // Restore VisionCamera on failure
           }
         });
 
@@ -218,6 +225,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
       if (currentSessionId) closeSession(currentSessionId).catch(() => {});
       closePeerConnection();
       resetStream();
+      setIsActive(true); // Restore VisionCamera on unmount
     };
   }, [deviceId, setConnectionStatus, setSessionId, resetStream]);
 

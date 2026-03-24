@@ -71,14 +71,23 @@ export async function getLocalStream(): Promise<MediaStream> {
 export async function createOffer(): Promise<RTCSessionDescription> {
   if (!peerConnection) throw new Error('No peer connection');
 
+  // Create offer with audio/video lines but don't grab camera yet.
+  // Tracks will be added when a viewer connects (addLocalStream).
+  const offer = await peerConnection.createOffer({
+    offerToReceiveAudio: true,
+    offerToReceiveVideo: true,
+  });
+  await peerConnection.setLocalDescription(offer);
+  return offer as RTCSessionDescription;
+}
+
+export async function addLocalStream(): Promise<void> {
+  if (!peerConnection) throw new Error('No peer connection');
+
   const stream = await getLocalStream();
   stream.getTracks().forEach((track: any) => {
     peerConnection!.addTrack(track, stream);
   });
-
-  const offer = await peerConnection.createOffer({});
-  await peerConnection.setLocalDescription(offer);
-  return offer as RTCSessionDescription;
 }
 
 export async function handleOffer(
