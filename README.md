@@ -70,7 +70,8 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 | Language | TypeScript | Type safety |
 | Navigation | React Navigation | Screen routing |
 | State | Zustand | Lightweight state management |
-| Camera | react-native-vision-camera | Camera access + frame processor |
+| Camera | react-native-webrtc (getUserMedia) | Camera capture via WebRTC |
+| Frame Capture | react-native-view-shot | Snapshot frames for ML Kit detection |
 | Streaming | react-native-webrtc | P2P video/audio via WebRTC |
 | AI Vision | Google ML Kit (react-native-mlkit) | On-device person/object detection |
 | AI Sound | TensorFlow Lite (YAMNet) | On-device sound classification |
@@ -308,7 +309,9 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
     "https://tfhub.dev/google/lite-model/yamnet/classification/tflite/1?lite-format=tflite"
   ```
 - **Sound detection** — The YAMNet classification logic is implemented but audio capture integration (`react-native-audio-api`) is deferred. The package caused Android native build failures (missing codegen/JNI directory) and was removed. Sound detection will be wired up in a future update when the package compatibility is resolved.
-- **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with photo snapshots (not frame processor). This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
+- **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames from the preview using `react-native-view-shot` (ViewShot). This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
+- **Clip recording disabled** — Local clip recording is currently disabled. It previously depended on VisionCamera's `startRecording` API, which was removed during the camera unification refactor. A replacement recording mechanism is planned.
+- **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with ViewShot snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
 - **Firebase namespaced API deprecation** — The app currently uses Firebase's namespaced API (v21), which shows deprecation warnings. These are non-blocking. Migration to the modular API (v22) is planned but not required for functionality.
 
