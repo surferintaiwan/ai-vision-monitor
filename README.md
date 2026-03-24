@@ -285,18 +285,32 @@ Project setup, authentication, navigation, and camera preview.
 
 ### Plan 2: Detection Engine (Complete)
 
-On-device AI detection pipeline with motion gating, ML Kit person detection, YAMNet sound classification, event management with debounce, local clip recording, and detection settings UI.
+On-device AI detection pipeline with motion gating, ML Kit object detection, YAMNet sound classification, event management with debounce, local clip recording, and detection settings UI.
 
 - [x] Task 1: Detection types and mode configurations
 - [x] Task 2: Firestore events service
 - [x] Task 3: Detection store (Zustand)
 - [x] Task 4: Motion detector (frame skip gate)
-- [x] Task 5: ML Kit person detector
+- [x] Task 5: ML Kit object detector
 - [x] Task 6: YAMNet sound detector with class mapping
 - [x] Task 7: Event manager (debounce + mode-based alert levels)
 - [x] Task 8: Local clip recorder
 - [x] Task 9: Camera preview detection integration
 - [x] Task 10: Camera settings screen with mode selection
+
+#### Known Limitations & Notes
+
+- **ML Kit default model** — The default ML Kit object detection model classifies generic categories (Fashion good, Home good, Food, Place, Plant) rather than "person" specifically. Currently any high-confidence object detection is treated as presence detection. For true person-specific detection, a future update should integrate ML Kit Face Detection or a custom TFLite model (e.g., MobileNet SSD).
+- **YAMNet model file** — The YAMNet TFLite model (`assets/models/yamnet.tflite`, ~3.9MB) is gitignored due to its size. After cloning, download it manually:
+  ```bash
+  mkdir -p assets/models
+  curl -L -o assets/models/yamnet.tflite \
+    "https://tfhub.dev/google/lite-model/yamnet/classification/tflite/1?lite-format=tflite"
+  ```
+- **Sound detection** — The YAMNet classification logic is implemented but audio capture integration (`react-native-audio-api`) is deferred. The package caused Android native build failures (missing codegen/JNI directory) and was removed. Sound detection will be wired up in a future update when the package compatibility is resolved.
+- **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with photo snapshots (not frame processor). This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
+- **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
+- **Firebase namespaced API deprecation** — The app currently uses Firebase's namespaced API (v21), which shows deprecation warnings. These are non-blocking. Migration to the modular API (v22) is planned but not required for functionality.
 
 ### Plan 3: Streaming & Viewer (Planned)
 
