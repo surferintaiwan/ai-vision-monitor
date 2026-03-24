@@ -312,9 +312,31 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
 - **Firebase namespaced API deprecation** — The app currently uses Firebase's namespaced API (v21), which shows deprecation warnings. These are non-blocking. Migration to the modular API (v22) is planned but not required for functionality.
 
-### Plan 3: Streaming & Viewer (Planned)
+### Plan 3: Streaming & Viewer (In Progress)
 
 WebRTC P2P streaming, Firestore signaling, viewer live view, FCM push notifications, event list with clip playback.
+
+- [x] Task 1: WebRTC peer connection service (STUN/TURN, offer/answer/ICE)
+- [x] Task 2: Firestore signaling service (session lifecycle, SDP/ICE exchange)
+- [x] Task 3: Stream store (Zustand)
+- [x] Task 4: Camera-side streaming integration
+- [x] Task 5: Live view screen (viewer WebRTC stream display)
+- [x] Task 6: Event list screen (detection history timeline)
+- [x] Task 7: FCM push notifications (messaging service + Cloud Function trigger)
+- [ ] Task 8: End-to-end testing
+
+#### Cloud Functions Setup
+
+To deploy the FCM push notification trigger:
+
+```bash
+cd functions
+npm install
+npm run build
+firebase deploy --only functions
+```
+
+**Note:** Cloud Functions require the Firebase Blaze (pay-as-you-go) plan. The Spark free plan does not support Cloud Functions deployment.
 
 ## Contributing
 
