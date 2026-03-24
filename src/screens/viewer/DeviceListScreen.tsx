@@ -6,13 +6,17 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '@/stores/authStore';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { getUserDevices } from '@/services/firebase/devices';
 import { signOut } from '@/services/firebase/auth';
 import { Device } from '@/types';
+import { RootStackParamList } from '@/navigation/RootNavigator';
 
 export function DeviceListScreen(): React.JSX.Element {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const user = useAuthStore((s) => s.user);
   const devices = useDeviceStore((s) => s.devices);
   const setDevices = useDeviceStore((s) => s.setDevices);
@@ -35,7 +39,10 @@ export function DeviceListScreen(): React.JSX.Element {
 
   function renderCamera({ item }: { item: Device }) {
     return (
-      <TouchableOpacity style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('LiveView', { cameraDeviceId: item.id })}
+      >
         <View style={styles.cardHeader}>
           <Text style={styles.cardName}>{item.name}</Text>
           <View
@@ -49,7 +56,7 @@ export function DeviceListScreen(): React.JSX.Element {
           Mode: {item.mode} | Status: {item.status}
         </Text>
         <Text style={styles.cardHint}>
-          Live streaming will be available in Plan 3
+          {item.status === 'online' ? 'Tap to view live stream' : 'Camera is offline'}
         </Text>
       </TouchableOpacity>
     );

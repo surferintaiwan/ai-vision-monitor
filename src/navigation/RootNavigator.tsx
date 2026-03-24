@@ -8,6 +8,7 @@ import { RoleSelectScreen } from '@/screens/RoleSelectScreen';
 import { CameraPreviewScreen } from '@/screens/camera/CameraPreviewScreen';
 import { CameraSettingsScreen } from '@/screens/camera/CameraSettingsScreen';
 import { DeviceListScreen } from '@/screens/viewer/DeviceListScreen';
+import { LiveViewScreen } from '@/screens/viewer/LiveViewScreen';
 import { LoadingScreen } from '@/components/LoadingScreen';
 
 export type RootStackParamList = {
@@ -16,6 +17,7 @@ export type RootStackParamList = {
   CameraPreview: undefined;
   CameraSettings: undefined;
   DeviceList: undefined;
+  LiveView: { cameraDeviceId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -62,6 +64,7 @@ export function RootNavigator(): React.JSX.Element {
               component={CameraSettingsScreen}
             />
             <Stack.Screen name="DeviceList" component={DeviceListScreen} />
+            <Stack.Screen name="LiveView" component={LiveViewScreen} />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
