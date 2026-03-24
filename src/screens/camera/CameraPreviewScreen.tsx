@@ -1,12 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
-import {
-  Camera,
-  useCameraDevice,
-  useCameraPermission,
-  useMicrophonePermission,
-  PhotoFile,
-} from 'react-native-vision-camera';
+import { RTCView, MediaStream } from 'react-native-webrtc';
+import ViewShot from 'react-native-view-shot';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDeviceStore } from '@/stores/deviceStore';
@@ -15,15 +10,14 @@ import { useDetectionStore } from '@/stores/detectionStore';
 import { updateDeviceStatus } from '@/services/firebase/devices';
 import { createEvent } from '@/services/firebase/events';
 import { signOut } from '@/services/firebase/auth';
-import { shouldProcessFrame, resetMotionDetector } from '@/services/detection/motionDetector';
+import { resetMotionDetector } from '@/services/detection/motionDetector';
 import { detectPersonInImage } from '@/services/detection/personDetector';
 import { EventManager, ManagedEvent } from '@/services/detection/eventManager';
-import { startRecording } from '@/services/recording/clipRecorder';
 import { useStreamStore } from '@/stores/streamStore';
 import {
   createPeerConnection,
   createOffer,
-  addLocalStream,
+  getLocalStream,
   handleAnswer,
   addIceCandidate,
   closePeerConnection,
@@ -41,13 +35,9 @@ const eventManager = new EventManager();
 
 export function CameraPreviewScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const device = useCameraDevice('back');
-  const cameraRef = useRef<Camera>(null);
-  const { hasPermission: hasCamPerm, requestPermission: requestCamPerm } =
-    useCameraPermission();
-  const { hasPermission: hasMicPerm, requestPermission: requestMicPerm } =
-    useMicrophonePermission();
+  const viewShotRef = useRef<ViewShot>(null);
 
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isActive, setIsActive] = useState(true);
   const deviceId = useDeviceStore((s) => s.deviceId);
   const clearUser = useAuthStore((s) => s.clearUser);
@@ -65,19 +55,20 @@ export function CameraPreviewScreen(): React.JSX.Element {
   const connectionStatus = useStreamStore((s) => s.connectionStatus);
   const setConnectionStatus = useStreamStore((s) => s.setConnectionStatus);
   const setSessionId = useStreamStore((s) => s.setSessionId);
-  const sessionId = useStreamStore((s) => s.sessionId);
   const resetStream = useStreamStore((s) => s.reset);
 
   const detectionLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const runDetectionCycle = useCallback(async () => {
-    if (!cameraRef.current || !isActive || !isDetecting) return;
+    if (!viewShotRef.current || !isActive || !isDetecting) return;
 
     try {
-      const photo: PhotoFile = await cameraRef.current.takePhoto();
+      // Capture the camera preview as a JPEG for ML Kit detection
+      const uri = await (viewShotRef.current as any).capture();
+      if (!uri) return;
 
       const result = await detectPersonInImage(
-        photo.path,
+        uri,
         useDetectionStore.getState().mode === 'security' ? 0.5 : 0.4,
       );
 
@@ -87,7 +78,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
         eventManager.handleDetection(result, useDetectionStore.getState().mode);
       }
     } catch {
-      // Photo or detection failed — skip this cycle
+      // Capture or detection failed — skip this cycle
     }
   }, [isActive, isDetecting, setLastDetection, incrementCount]);
 
@@ -110,31 +101,21 @@ export function CameraPreviewScreen(): React.JSX.Element {
     const handler = async (event: ManagedEvent) => {
       if (!deviceId || !userId) return;
 
-      const clipPath =
-        event.alertLevel !== 'ignore'
-          ? await startRecording(cameraRef, event.timestamp, 10)
-          : null;
-
+      // Clip recording is not available with WebRTC camera (no VisionCamera)
       await createEvent({
         deviceId,
         userId,
         type: event.type,
         soundClass: event.soundClass,
         confidence: event.confidence,
-        clipPath,
-        clipDurationSec: clipPath ? 10 : 0,
+        clipPath: null,
+        clipDurationSec: 0,
       }).catch((err) => console.warn('Failed to log event:', err));
     };
 
     eventManager.onEvent(handler);
     return () => eventManager.removeHandler(handler);
   }, [deviceId, userId]);
-
-  // Request permissions on mount
-  useEffect(() => {
-    if (!hasCamPerm) requestCamPerm();
-    if (!hasMicPerm) requestMicPerm();
-  }, [hasCamPerm, hasMicPerm, requestCamPerm, requestMicPerm]);
 
   // Update device status on mount/unmount
   useEffect(() => {
@@ -152,7 +133,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
     return () => subscription.remove();
   }, []);
 
-  // Set up WebRTC streaming session
+  // Set up WebRTC: grab camera + streaming session
   useEffect(() => {
     if (!deviceId) return;
 
@@ -177,29 +158,28 @@ export function CameraPreviewScreen(): React.JSX.Element {
           },
           onConnectionStateChange: (state) => {
             if (state === 'connected') setConnectionStatus('connected');
-            else if (state === 'disconnected' || state === 'failed') {
-              setConnectionStatus(state === 'disconnected' ? 'disconnected' : 'failed');
-              setIsActive(true); // Restore VisionCamera when viewer disconnects
-            }
+            else if (state === 'disconnected') setConnectionStatus('disconnected');
+            else if (state === 'failed') setConnectionStatus('failed');
           },
         });
 
-        // Create and publish offer
+        // Create offer (grabs camera via getUserMedia + adds tracks)
         const offer = await createOffer();
         await setOffer(currentSessionId, offer.sdp!);
+
+        // Save local stream for RTCView preview
+        const stream = await getLocalStream();
+        setLocalStream(stream);
+
         setConnectionStatus('idle');
 
-        // Listen for viewer answer — when viewer connects, grab camera for streaming
+        // Listen for viewer answer
         unsubAnswer = onAnswer(currentSessionId, async (answerSdp) => {
           try {
-            // Deactivate VisionCamera so WebRTC can use the camera
-            setIsActive(false);
-            await addLocalStream();
             await handleAnswer(answerSdp);
             setConnectionStatus('connected');
           } catch (err) {
             console.warn('Failed to handle answer:', err);
-            setIsActive(true); // Restore VisionCamera on failure
           }
         });
 
@@ -225,7 +205,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
       if (currentSessionId) closeSession(currentSessionId).catch(() => {});
       closePeerConnection();
       resetStream();
-      setIsActive(true); // Restore VisionCamera on unmount
+      setLocalStream(null);
     };
   }, [deviceId, setConnectionStatus, setSessionId, resetStream]);
 
@@ -241,44 +221,26 @@ export function CameraPreviewScreen(): React.JSX.Element {
     setDetecting(!isDetecting);
   }
 
-  if (!hasCamPerm || !hasMicPerm) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.permText}>
-          Camera and microphone permissions are required.
-        </Text>
-        <TouchableOpacity
-          style={styles.permButton}
-          onPress={() => {
-            if (!hasCamPerm) requestCamPerm();
-            if (!hasMicPerm) requestMicPerm();
-          }}
-        >
-          <Text style={styles.permButtonText}>Grant Permissions</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (!device) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.permText}>No camera device found.</Text>
-      </View>
-    );
-  }
+  const streamUrl = (localStream as any)?.toURL?.();
 
   return (
     <View style={styles.container}>
-      <Camera
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={isActive}
-        audio={true}
-        photo={true}
-        video={true}
-      />
+      {/* Camera preview via WebRTC local stream */}
+      <ViewShot ref={viewShotRef} style={StyleSheet.absoluteFill} options={{ format: 'jpg', quality: 0.6 }}>
+        {streamUrl ? (
+          <RTCView
+            streamURL={streamUrl}
+            style={StyleSheet.absoluteFill}
+            objectFit="cover"
+            mirror={false}
+            zOrder={0}
+          />
+        ) : (
+          <View style={styles.loadingCamera}>
+            <Text style={styles.loadingText}>Starting camera...</Text>
+          </View>
+        )}
+      </ViewShot>
 
       {/* Status overlay */}
       <View style={styles.overlay}>
@@ -350,6 +312,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingCamera: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  loadingText: {
+    color: '#aaa',
+    fontSize: 16,
   },
   overlay: {
     position: 'absolute',
@@ -428,23 +400,5 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: '#fff',
     fontSize: 14,
-  },
-  permText: {
-    color: '#fff',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 32,
-  },
-  permButton: {
-    backgroundColor: '#4A90D9',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  permButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
