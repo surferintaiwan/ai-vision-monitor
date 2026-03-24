@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useAuthStore } from '@/stores/authStore';
-import { registerDevice } from '@/services/firebase/devices';
+import { registerDevice, findExistingDevice, updateDeviceStatus } from '@/services/firebase/devices';
 import { Role } from '@/types';
 
 function generateDeviceId(): string {
@@ -21,10 +21,19 @@ export function RoleSelectScreen(): React.JSX.Element {
     if (!user) return;
 
     try {
-      const deviceId = generateDeviceId();
-      const name = role === 'camera' ? 'New Camera' : 'Viewer';
+      // Reuse existing device if one already exists for this user + role
+      const existing = await findExistingDevice(user.uid, role);
 
-      await registerDevice(deviceId, user.uid, name, role);
+      let deviceId: string;
+      if (existing) {
+        deviceId = existing.id;
+        await updateDeviceStatus(deviceId, 'online');
+      } else {
+        deviceId = generateDeviceId();
+        const name = role === 'camera' ? 'New Camera' : 'Viewer';
+        await registerDevice(deviceId, user.uid, name, role);
+      }
+
       setRole(role);
       setDeviceId(deviceId);
 

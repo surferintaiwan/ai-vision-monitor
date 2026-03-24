@@ -54,6 +54,20 @@ export async function getUserDevices(userId: string): Promise<Device[]> {
   return snapshot.docs.map(docToDevice);
 }
 
+export async function findExistingDevice(
+  userId: string,
+  role: Role,
+): Promise<Device | null> {
+  const snapshot = await devicesCollection()
+    .where('userId', '==', userId)
+    .where('role', '==', role)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+  return docToDevice(snapshot.docs[0]);
+}
+
 function docToDevice(
   doc: FirebaseFirestoreTypes.QueryDocumentSnapshot,
 ): Device {
