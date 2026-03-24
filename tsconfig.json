@@ -8,6 +8,6 @@
     },
     "types": ["react-native", "jest"]
   },
-  "include": ["src/**/*", "App.tsx"],
-  "exclude": ["src/**/__tests__/**"]
+  "include": ["./src/**/*", "./App.tsx"],
+  "exclude": ["src/**/__tests__/**", "functions/**/*"]
 }

@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { getUserDevices } from '@/services/firebase/devices';
 import { signOut } from '@/services/firebase/auth';
+import { requestNotificationPermission, registerFCMToken } from '@/services/firebase/messaging';
 import { Device } from '@/types';
 import { RootStackParamList } from '@/navigation/RootNavigator';
 
@@ -20,6 +21,7 @@ export function DeviceListScreen(): React.JSX.Element {
   const user = useAuthStore((s) => s.user);
   const devices = useDeviceStore((s) => s.devices);
   const setDevices = useDeviceStore((s) => s.setDevices);
+  const deviceId = useDeviceStore((s) => s.deviceId);
   const clearUser = useAuthStore((s) => s.clearUser);
   const clearDevice = useDeviceStore((s) => s.clearDevice);
 
@@ -28,6 +30,18 @@ export function DeviceListScreen(): React.JSX.Element {
       getUserDevices(user.uid).then(setDevices);
     }
   }, [user, setDevices]);
+
+  // Register FCM token for push notifications
+  useEffect(() => {
+    if (!user || !deviceId) return;
+    requestNotificationPermission().then((granted) => {
+      if (granted) {
+        registerFCMToken(user.uid, deviceId).catch((err) =>
+          console.warn('Failed to register FCM token:', err),
+        );
+      }
+    });
+  }, [user, deviceId]);
 
   const cameras = devices.filter((d) => d.role === 'camera');
 
