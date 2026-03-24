@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
 import { RTCView, MediaStream } from 'react-native-webrtc';
-import { captureScreen } from 'react-native-view-shot';
+import { captureScreenPixelCopy } from '@/services/native/screenCapture';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDeviceStore } from '@/stores/deviceStore';
@@ -59,16 +59,19 @@ export function CameraPreviewScreen(): React.JSX.Element {
 
   const runDetectionCycle = useCallback(async () => {
     if (!isActive || !isDetecting) return;
+    console.log('[Detection] Starting cycle...');
 
     try {
-      // Capture the entire screen as JPEG (captureScreen works with SurfaceView)
-      const uri = await captureScreen({ format: 'jpg', quality: 0.6 });
+      // Capture via PixelCopy (can capture SurfaceView/RTCView content)
+      const uri = await captureScreenPixelCopy();
+      console.log('[Detection] Captured screen:', uri);
       if (!uri) return;
 
       const result = await detectPersonInImage(
         uri,
         useDetectionStore.getState().mode === 'security' ? 0.5 : 0.4,
       );
+      console.log('[Detection] Result:', result);
 
       if (result) {
         setLastDetection(result);
