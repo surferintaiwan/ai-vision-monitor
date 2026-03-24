@@ -19,6 +19,22 @@ import { shouldProcessFrame, resetMotionDetector } from '@/services/detection/mo
 import { detectPersonInImage } from '@/services/detection/personDetector';
 import { EventManager, ManagedEvent } from '@/services/detection/eventManager';
 import { startRecording } from '@/services/recording/clipRecorder';
+import { useStreamStore } from '@/stores/streamStore';
+import {
+  createPeerConnection,
+  createOffer,
+  handleAnswer,
+  addIceCandidate,
+  closePeerConnection,
+} from '@/services/webrtc/peerConnection';
+import {
+  createSession,
+  setOffer,
+  addCandidate,
+  onAnswer,
+  onCandidates,
+  closeSession,
+} from '@/services/webrtc/signalingService';
 
 const eventManager = new EventManager();
 
@@ -44,6 +60,12 @@ export function CameraPreviewScreen(): React.JSX.Element {
   const setDetecting = useDetectionStore((s) => s.setDetecting);
   const setLastDetection = useDetectionStore((s) => s.setLastDetection);
   const incrementCount = useDetectionStore((s) => s.incrementCount);
+
+  const connectionStatus = useStreamStore((s) => s.connectionStatus);
+  const setConnectionStatus = useStreamStore((s) => s.setConnectionStatus);
+  const setSessionId = useStreamStore((s) => s.setSessionId);
+  const sessionId = useStreamStore((s) => s.sessionId);
+  const resetStream = useStreamStore((s) => s.reset);
 
   const detectionLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -129,6 +151,76 @@ export function CameraPreviewScreen(): React.JSX.Element {
     return () => subscription.remove();
   }, []);
 
+  // Set up WebRTC streaming session
+  useEffect(() => {
+    if (!deviceId) return;
+
+    let unsubAnswer: (() => void) | null = null;
+    let unsubCandidates: (() => void) | null = null;
+    let currentSessionId: string | null = null;
+
+    async function setupStreaming() {
+      try {
+        setConnectionStatus('connecting');
+
+        // Create signaling session
+        currentSessionId = await createSession(deviceId!);
+        setSessionId(currentSessionId);
+
+        // Create peer connection
+        createPeerConnection({
+          onIceCandidate: (candidate) => {
+            if (currentSessionId) {
+              addCandidate(currentSessionId, candidate, 'camera').catch(() => {});
+            }
+          },
+          onConnectionStateChange: (state) => {
+            if (state === 'connected') setConnectionStatus('connected');
+            else if (state === 'disconnected') setConnectionStatus('disconnected');
+            else if (state === 'failed') setConnectionStatus('failed');
+          },
+        });
+
+        // Create and publish offer
+        const offer = await createOffer();
+        await setOffer(currentSessionId, offer.sdp!);
+        setConnectionStatus('idle');
+
+        // Listen for viewer answer
+        unsubAnswer = onAnswer(currentSessionId, async (answerSdp) => {
+          try {
+            await handleAnswer(answerSdp);
+            setConnectionStatus('connected');
+          } catch (err) {
+            console.warn('Failed to handle answer:', err);
+          }
+        });
+
+        // Listen for viewer ICE candidates
+        unsubCandidates = onCandidates(currentSessionId, 'viewer', async (candidate) => {
+          try {
+            await addIceCandidate(candidate);
+          } catch (err) {
+            console.warn('Failed to add ICE candidate:', err);
+          }
+        });
+      } catch (err) {
+        console.warn('Streaming setup failed:', err);
+        setConnectionStatus('failed');
+      }
+    }
+
+    setupStreaming();
+
+    return () => {
+      unsubAnswer?.();
+      unsubCandidates?.();
+      if (currentSessionId) closeSession(currentSessionId).catch(() => {});
+      closePeerConnection();
+      resetStream();
+    };
+  }, [deviceId, setConnectionStatus, setSessionId, resetStream]);
+
   async function handleSignOut() {
     setDetecting(false);
     if (deviceId) await updateDeviceStatus(deviceId, 'offline');
@@ -207,6 +299,9 @@ export function CameraPreviewScreen(): React.JSX.Element {
               Tap Start to begin detection
             </Text>
           )}
+          <Text style={styles.statusHint}>
+            Stream: {connectionStatus === 'connected' ? 'Viewer connected' : 'Waiting for viewer'}
+          </Text>
         </View>
       </View>
 
