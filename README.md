@@ -230,6 +230,30 @@ To test on a physical Android device:
 
 **Note:** Camera features require a physical device. The Android emulator does not have a real camera.
 
+### Testing with Two Phones (WiFi ADB)
+
+To test the camera/viewer flow simultaneously on two Android phones, use WiFi ADB so both devices can run the app without swapping USB cables:
+
+1. Connect **Phone A** via USB, then enable wireless debugging:
+   ```bash
+   adb tcpip 5555
+   adb connect <PHONE_A_IP>:5555
+   ```
+2. Disconnect the USB cable from Phone A
+3. Connect **Phone B** via USB
+4. Verify both devices are connected:
+   ```bash
+   adb devices
+   # Should show Phone A (IP) and Phone B (USB)
+   ```
+5. Install and run on both:
+   ```bash
+   npx expo run:android
+   ```
+   Expo will prompt you to select a device if multiple are connected, or you can target a specific device with `--device`.
+
+**Tip:** Find your phone's IP address in **Settings** → **Wi-Fi** → tap your network → **IP address**. Both phones must be on the same WiFi network as your development machine.
+
 ## Usage
 
 1. **Sign in** with Google or Apple on both devices
@@ -314,6 +338,7 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
 - **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with ViewShot snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
 - **Firebase namespaced API deprecation** — The app currently uses Firebase's namespaced API (v21), which shows deprecation warnings. These are non-blocking. Migration to the modular API (v22) is planned but not required for functionality.
+- **Device registration** — Device registration now checks for an existing device with the same user and role before creating a new document. Previously, selecting Camera/Viewer role would create a duplicate device entry in Firestore on every tap.
 
 ### Plan 3: Streaming & Viewer (In Progress)
 
