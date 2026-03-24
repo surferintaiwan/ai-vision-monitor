@@ -252,6 +252,16 @@ To test the camera/viewer flow simultaneously on two Android phones, use WiFi AD
    ```
    Expo will prompt you to select a device if multiple are connected, or you can target a specific device with `--device`.
 
+   Alternatively, build the APK once and install it directly to both phones via `adb install`:
+   ```bash
+   # Build APK
+   cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew assembleDebug
+
+   # Install to both phones via WiFi
+   adb -s 192.168.x.x:5555 install -r android/app/build/outputs/apk/debug/app-debug.apk
+   adb -s 192.168.y.y:5555 install -r android/app/build/outputs/apk/debug/app-debug.apk
+   ```
+
 **Tip:** Find your phone's IP address in **Settings** → **Wi-Fi** → tap your network → **IP address**. Both phones must be on the same WiFi network as your development machine.
 
 ## Usage
