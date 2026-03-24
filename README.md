@@ -71,7 +71,7 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 | Navigation | React Navigation | Screen routing |
 | State | Zustand | Lightweight state management |
 | Camera | react-native-webrtc (getUserMedia) | Camera capture via WebRTC |
-| Frame Capture | react-native-view-shot | Snapshot frames for ML Kit detection |
+| Frame Capture | react-native-view-shot (captureScreen) | Snapshot frames for ML Kit detection |
 | Streaming | react-native-webrtc | P2P video/audio via WebRTC |
 | AI Vision | Google ML Kit (react-native-mlkit) | On-device person/object detection |
 | AI Sound | TensorFlow Lite (YAMNet) | On-device sound classification |
@@ -353,12 +353,14 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
     "https://tfhub.dev/google/lite-model/yamnet/classification/tflite/1?lite-format=tflite"
   ```
 - **Sound detection** — The YAMNet classification logic is implemented but audio capture integration (`react-native-audio-api`) is deferred. The package caused Android native build failures (missing codegen/JNI directory) and was removed. Sound detection will be wired up in a future update when the package compatibility is resolved.
-- **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames from the preview using `react-native-view-shot` (ViewShot). This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
+- **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames using `captureScreen` from `react-native-view-shot` (full-screen capture) rather than `ViewShot` component wrapping, because `ViewShot` cannot capture `SurfaceView`/`RTCView` on Android. This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
 - **Clip recording disabled** — Local clip recording is currently disabled. It previously depended on VisionCamera's `startRecording` API, which was removed during the camera unification refactor. A replacement recording mechanism is planned.
-- **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with ViewShot snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
+- **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with `captureScreen` snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
 - **Firebase namespaced API deprecation** — The app currently uses Firebase's namespaced API (v21), which shows deprecation warnings. These are non-blocking. Migration to the modular API (v22) is planned but not required for functionality.
 - **Device registration** — Device registration now checks for an existing device with the same user and role before creating a new document. Previously, selecting Camera/Viewer role would create a duplicate device entry in Firestore on every tap.
+- **Signaling listener fix** — The `onAnswer` and `onOffer` Firestore listeners now fire only once (using `.get()` after detecting a change) instead of re-triggering on every document update. Previously, the listeners would repeatedly process the same SDP, causing excessive Firestore reads/writes and unstable connections.
+- **Session auto-rebuild** — The camera automatically rebuilds the WebRTC session when a viewer disconnects, allowing the viewer to reconnect without the camera needing to be restarted.
 
 ### Plan 3: Streaming & Viewer (In Progress)
 
