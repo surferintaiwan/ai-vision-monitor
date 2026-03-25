@@ -30,6 +30,13 @@ export async function updateDeviceStatus(
   });
 }
 
+export async function updateDeviceName(
+  deviceId: string,
+  name: string,
+): Promise<void> {
+  await devicesCollection().doc(deviceId).update({ name });
+}
+
 export async function updateDeviceMode(
   deviceId: string,
   mode: DetectionMode,

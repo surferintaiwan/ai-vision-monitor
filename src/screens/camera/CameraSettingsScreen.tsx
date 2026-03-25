@@ -1,16 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useDetectionStore } from '@/stores/detectionStore';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { updateDeviceMode } from '@/services/firebase/devices';
+import { updateDeviceMode, updateDeviceName } from '@/services/firebase/devices';
 import { AlertLevel, DetectionMode } from '@/types';
 import { DETECTION_MODES } from '@/config/detectionModes';
 
@@ -53,6 +54,22 @@ export function CameraSettingsScreen(): React.JSX.Element {
   const mode = useDetectionStore((s) => s.mode);
   const setMode = useDetectionStore((s) => s.setMode);
   const deviceId = useDeviceStore((s) => s.deviceId);
+  const deviceName = useDeviceStore((s) => s.devices.find((d) => d.id === deviceId)?.name ?? 'New Camera');
+  const setDevices = useDeviceStore((s) => s.setDevices);
+  const devices = useDeviceStore((s) => s.devices);
+
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(deviceName);
+
+  async function handleSaveName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed || !deviceId) return;
+    await updateDeviceName(deviceId, trimmed).catch((err) =>
+      console.warn('Failed to update name:', err),
+    );
+    setDevices(devices.map((d) => (d.id === deviceId ? { ...d, name: trimmed } : d)));
+    setEditingName(false);
+  }
 
   async function handleSelectMode(newMode: DetectionMode) {
     setMode(newMode);
@@ -67,7 +84,35 @@ export function CameraSettingsScreen(): React.JSX.Element {
 
   return (
     <ScrollView style={[styles.container, { paddingBottom: insets.bottom + 16 }]} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
-      <Text style={styles.title}>Detection Settings</Text>
+      <Text style={styles.title}>Camera Settings</Text>
+
+      <Text style={styles.sectionTitle}>Camera Name</Text>
+      {editingName ? (
+        <View style={styles.nameEditRow}>
+          <TextInput
+            style={styles.nameInput}
+            value={nameInput}
+            onChangeText={setNameInput}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={handleSaveName}
+          />
+          <TouchableOpacity style={styles.nameSaveButton} onPress={handleSaveName}>
+            <Text style={styles.nameSaveText}>Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { setEditingName(false); setNameInput(deviceName); }}>
+            <Text style={styles.nameCancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.nameCard}
+          onPress={() => { setNameInput(deviceName); setEditingName(true); }}
+        >
+          <Text style={styles.nameText}>{deviceName}</Text>
+          <Text style={styles.nameEditHint}>Tap to edit</Text>
+        </TouchableOpacity>
+      )}
 
       <Text style={styles.sectionTitle}>Detection Mode</Text>
       {(Object.keys(MODE_INFO) as DetectionMode[]).map((m) => (
@@ -177,6 +222,54 @@ const styles = StyleSheet.create({
   configValue: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  nameCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nameText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  nameEditHint: {
+    fontSize: 12,
+    color: '#666',
+  },
+  nameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nameInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    padding: 12,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#4A90D9',
+  },
+  nameSaveButton: {
+    backgroundColor: '#4A90D9',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  nameSaveText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  nameCancelText: {
+    color: '#a0a0b0',
+    fontSize: 14,
   },
   backButton: {
     backgroundColor: 'rgba(255,255,255,0.1)',

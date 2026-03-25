@@ -1,16 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '@/stores/authStore';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { getUserDevices } from '@/services/firebase/devices';
+import { getUserDevices, updateDeviceName } from '@/services/firebase/devices';
 import { signOut } from '@/services/firebase/auth';
 import { requestNotificationPermission, registerFCMToken } from '@/services/firebase/messaging';
 import { Device } from '@/types';
@@ -43,6 +44,9 @@ export function DeviceListScreen(): React.JSX.Element {
     });
   }, [user, deviceId]);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState('');
+
   const cameras = devices.filter((d) => d.role === 'camera');
 
   async function handleSignOut() {
@@ -51,27 +55,69 @@ export function DeviceListScreen(): React.JSX.Element {
     clearUser();
   }
 
+  async function handleSaveName(id: string) {
+    const trimmed = nameInput.trim();
+    if (!trimmed) return;
+    await updateDeviceName(id, trimmed).catch((err) =>
+      console.warn('Failed to update name:', err),
+    );
+    setDevices(devices.map((d) => (d.id === id ? { ...d, name: trimmed } : d)));
+    setEditingId(null);
+  }
+
   function renderCamera({ item }: { item: Device }) {
+    const isEditing = editingId === item.id;
+
     return (
       <View style={styles.card}>
         <TouchableOpacity
           onPress={() => navigation.navigate('LiveView', { cameraDeviceId: item.id })}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardName}>{item.name}</Text>
-            <View
-              style={[
-                styles.statusDot,
-                item.status === 'online' ? styles.online : styles.offline,
-              ]}
-            />
+            {isEditing ? (
+              <View style={styles.nameEditRow}>
+                <TextInput
+                  style={styles.nameInput}
+                  value={nameInput}
+                  onChangeText={setNameInput}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => handleSaveName(item.id)}
+                />
+                <TouchableOpacity style={styles.nameSaveButton} onPress={() => handleSaveName(item.id)}>
+                  <Text style={styles.nameSaveText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setEditingId(null)}>
+                  <Text style={styles.nameCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  onPress={() => { setNameInput(item.name); setEditingId(item.id); }}
+                  onLongPress={() => { setNameInput(item.name); setEditingId(item.id); }}
+                >
+                  <Text style={styles.cardName}>{item.name}</Text>
+                </TouchableOpacity>
+                <View
+                  style={[
+                    styles.statusDot,
+                    item.status === 'online' ? styles.online : styles.offline,
+                  ]}
+                />
+              </>
+            )}
           </View>
-          <Text style={styles.cardMode}>
-            Mode: {item.mode} | Status: {item.status}
-          </Text>
-          <Text style={styles.cardHint}>
-            {item.status === 'online' ? 'Tap to view live stream' : 'Camera is offline'}
-          </Text>
+          {!isEditing && (
+            <>
+              <Text style={styles.cardMode}>
+                Mode: {item.mode} | Status: {item.status}
+              </Text>
+              <Text style={styles.cardHint}>
+                {item.status === 'online' ? 'Tap to view live stream' : 'Camera is offline'}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.eventsButton}
@@ -188,6 +234,37 @@ const styles = StyleSheet.create({
     color: '#a0a0b0',
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  nameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  nameInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 6,
+    padding: 8,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#4A90D9',
+  },
+  nameSaveButton: {
+    backgroundColor: '#4A90D9',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  nameSaveText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  nameCancelText: {
+    color: '#a0a0b0',
+    fontSize: 13,
   },
   signOutButton: {
     alignSelf: 'center',
