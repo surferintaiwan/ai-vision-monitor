@@ -71,11 +71,12 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 | Navigation | React Navigation | Screen routing |
 | State | Zustand | Lightweight state management |
 | Camera | react-native-webrtc (getUserMedia) | Camera capture via WebRTC |
-| Frame Capture | PixelCopy native module | Snapshot frames for ML Kit detection (captures SurfaceView) |
+| Frame Capture | PixelCopy native module | Capture SurfaceView frames for detection |
+| Motion Detection | Native pixel-diff (ScreenCaptureModule) | 64x48 downscaled frame comparison |
 | Streaming | react-native-webrtc | P2P video/audio via WebRTC |
-| AI Vision | Google ML Kit (react-native-mlkit) | On-device person/object detection |
+| Audio Routing | AudioRoutingModule (native) | Force loudspeaker on viewer |
+| AI Vision | Google ML Kit (react-native-mlkit) | On-device object detection (future: person-specific) |
 | AI Sound | TensorFlow Lite (YAMNet) | On-device sound classification |
-| AI Motion | Custom frame diff | Lightweight pixel comparison |
 | Auth | Firebase Auth | Google/Apple social sign-in |
 | Database | Cloud Firestore | Device registry + signaling + events |
 | Push | Firebase Cloud Messaging (FCM) | Push notifications |
@@ -394,7 +395,7 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
 
 #### Known Limitations & Notes
 
-- **ML Kit default model** — The default ML Kit object detection model classifies generic categories (Fashion good, Home good, Food, Place, Plant) rather than "person" specifically. Labels are often empty in `singleImage` mode, so detection uses **bounding box center-point movement** between frames as a motion proxy: when the detected object's center shifts more than 60px after a stable baseline, it triggers a detection event. For true person-specific detection, a future update should integrate ML Kit Face Detection or a custom TFLite model (e.g., MobileNet SSD).
+- **Motion detection** — Detection now uses **native pixel-level frame comparison** (`ScreenCaptureModule.detectMotion()`) instead of ML Kit bounding boxes. Each frame is downscaled to 64x48 and compared pixel-by-pixel against the previous frame. If more than 5% of pixels change significantly, motion is detected. ML Kit's object detection was unreliable for motion — it kept locking onto background objects with stable bounding boxes regardless of foreground movement. ML Kit is still available for future person-specific detection via Face Detection or a custom TFLite model (e.g., MobileNet SSD).
 - **YAMNet model file** — The YAMNet TFLite model (`assets/models/yamnet.tflite`, ~3.9MB) is gitignored due to its size. After cloning, download it manually:
   ```bash
   mkdir -p assets/models
@@ -404,7 +405,8 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
 - **Sound detection** — The YAMNet classification logic is implemented but audio capture integration (`react-native-audio-api`) is deferred. The package caused Android native build failures (missing codegen/JNI directory) and was removed. Sound detection will be wired up in a future update when the package compatibility is resolved.
 - **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames using a custom **PixelCopy native module** (`ScreenCaptureModule.kt`) that finds the SurfaceView in the view hierarchy and uses Android's `PixelCopy.request()` to capture its content. Standard screenshot APIs (`captureScreen`, `ViewShot`) cannot capture SurfaceView/RTCView on Android — they render on a separate hardware surface. This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
 - **Clip recording disabled** — Local clip recording is currently disabled. It previously depended on VisionCamera's `startRecording` API, which was removed during the camera unification refactor. A replacement recording mechanism is planned.
-- **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with `captureScreen` snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
+- **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with PixelCopy snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
+- **Audio routing** — WebRTC defaults audio to the earpiece on Android. A custom `AudioRoutingModule` native module forces speakerphone mode on the viewer side when a remote stream connects. It retries multiple times to override WebRTC's audio routing.
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
 - **Firebase namespaced API deprecation** — The app currently uses Firebase's namespaced API (v21), which shows deprecation warnings. These are non-blocking. Migration to the modular API (v22) is planned but not required for functionality.
 - **Device registration** — Device registration now checks for an existing device with the same user and role before creating a new document. Previously, selecting Camera/Viewer role would create a duplicate device entry in Firestore on every tap.
