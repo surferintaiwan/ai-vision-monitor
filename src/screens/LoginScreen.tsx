@@ -10,10 +10,12 @@ import {
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { appleAuth } from '@invertase/react-native-apple-authentication';
 import { signInWithGoogle, signInWithApple } from '@/services/firebase/auth';
+import {
+  ensureGoogleSignInConfigured,
+  formatGoogleSignInError,
+  getGoogleIdToken,
+} from '@/services/auth/googleSignIn';
 import { useAuthStore } from '@/stores/authStore';
-import { GOOGLE_WEB_CLIENT_ID } from '@env';
-
-GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
 
 export function LoginScreen(): React.JSX.Element {
   const [loading, setLoading] = useState(false);
@@ -22,14 +24,18 @@ export function LoginScreen(): React.JSX.Element {
   async function handleGoogleSignIn() {
     try {
       setLoading(true);
-      await GoogleSignin.hasPlayServices();
+      ensureGoogleSignInConfigured();
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const signInResult = await GoogleSignin.signIn();
-      const idToken = signInResult.data?.idToken;
-      if (!idToken) throw new Error('No ID token from Google Sign-In');
+      const idToken = getGoogleIdToken(signInResult);
+      if (!idToken) return;
       await signInWithGoogle(idToken);
     } catch (err: any) {
-      setError(err.message ?? 'Google sign-in failed');
-      Alert.alert('Sign-In Error', err.message);
+      const message = formatGoogleSignInError(err);
+      setError(message);
+      setTimeout(() => {
+        Alert.alert('Sign-In Error', message);
+      }, Platform.OS === 'android' ? 150 : 0);
     } finally {
       setLoading(false);
     }

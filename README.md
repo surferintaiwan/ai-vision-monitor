@@ -199,6 +199,14 @@ Required GitHub repository secrets:
 
 `FIREBASE_TESTERS` and `FIREBASE_GROUPS` are individually optional, but CI requires at least one of them to be set.
 
+For CI/CD Google Sign-In, these secrets must stay in sync:
+
+- `GOOGLE_WEB_CLIENT_ID` must match the Web client ID embedded in `GOOGLE_SERVICES_JSON`
+- The release keystore stored in `ANDROID_UPLOAD_KEYSTORE_BASE64` must have its SHA-1 added to the Firebase Android app
+- After adding a new SHA-1 in Firebase, download a fresh `google-services.json` and update `GOOGLE_SERVICES_JSON`
+
+The Android workflow validates this before `assembleRelease` and will fail fast if the release keystore fingerprint or Web client ID does not match.
+
 Repository variable (not secret):
 
 - `CF_WORKER_NAME`  
@@ -265,6 +273,14 @@ Service account guidance:
 4. Download `google-services.json` → place in `android/app/`
    - **Important:** Make sure to download this **after** adding the SHA-1 fingerprint. The file must contain your `oauth_client` entries for Google Sign-In to work.
 5. Skip "Add Firebase SDK" step (already configured)
+
+If tapping Google sign-in shows `DEVELOPER_ERROR` or `code: 10`, it means Android app signing does not match your Firebase/Google configuration. The usual fix is:
+
+1. Run `cd android && ./gradlew signingReport`
+2. Copy the `SHA1` for the build you are running (`debug` during local development)
+3. Add that SHA-1 to Firebase Console → Project settings → Your Android app
+4. Download a fresh `google-services.json` and replace the file in `android/app/`
+5. Confirm `GOOGLE_WEB_CLIENT_ID` in `.env` is the **Web** client ID from Firebase Authentication, not the Android client ID
 
 #### Google Services Gradle Plugin
 
