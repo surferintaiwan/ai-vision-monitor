@@ -8,7 +8,7 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 
 ### Key Features
 
-- **Dual-role app** — One app, two modes: Camera mode turns an old phone into a smart security camera; Viewer mode lets you watch live feeds and receive alerts on your primary phone
+- **Dual-role app** — One app, two modes: Camera mode turns an old phone into a smart security camera; Viewer mode lets you watch live feeds and receive alerts on your primary phone. Rename cameras from either side
 - **On-device AI detection** — All detection runs locally on the camera phone using Google ML Kit (person/object detection), YAMNet (sound classification), and frame-diff motion detection. No cloud processing, zero latency, completely free
 - **WebRTC P2P streaming** — Direct peer-to-peer video streaming with STUN/TURN support. Low latency, minimal server cost
 - **Multiple detection modes** — Pre-configured profiles for home security, baby monitoring, and pet watching, plus fully customizable settings
@@ -152,6 +152,72 @@ AI_VISION_UPLOAD_KEY_PASSWORD=your_key_password
 
 Add them to your local `~/.gradle/gradle.properties` (or CI secret env injection), not this repository.
 
+### GitHub Actions + Firebase App Distribution
+
+This repository includes `.github/workflows/android-apk.yml` that:
+
+1. Builds a signed Android release APK on each push to `main`
+2. Uploads the APK to **Firebase App Distribution**
+3. Does **not** upload APKs to GitHub Releases or GitHub Artifacts
+
+Required GitHub repository secrets:
+
+- `GOOGLE_WEB_CLIENT_ID`  
+  Firebase Console → Authentication → Sign-in method → Google → Web client ID
+- `GOOGLE_SERVICES_JSON`  
+  Firebase Console → Project settings → Your Android app → download `google-services.json` and paste full JSON content
+- `AI_VISION_UPLOAD_STORE_PASSWORD` / `AI_VISION_UPLOAD_KEY_ALIAS` / `AI_VISION_UPLOAD_KEY_PASSWORD`  
+  Your Android release keystore values
+- `ANDROID_UPLOAD_KEYSTORE_BASE64`  
+  Base64 content of your release keystore (`.jks`)
+- `TURN_CREDENTIALS_ENDPOINT`  
+  URL of your deployed Cloudflare TURN credentials Worker
+- `TURN_URL` / `TURN_USERNAME` / `TURN_CREDENTIAL` (optional fallback TURN)  
+  Static TURN credentials (only if you want fallback mode)
+- `FIREBASE_SERVICE_ACCOUNT_JSON`  
+  Google Cloud service account key JSON with Firebase App Distribution access
+- `FIREBASE_APP_ID_ANDROID`  
+  Firebase Console → Project settings → Android app → App ID (format `1:...:android:...`)
+- `FIREBASE_TESTERS` (optional)  
+  Comma-separated tester emails for App Distribution
+- `FIREBASE_GROUPS` (optional)  
+  Comma-separated App Distribution group aliases
+
+#### Keystore + BASE64 (Why and How)
+
+- `upload-keystore.jks` is your Android signing key file. Generate it locally with `keytool`; do not commit it.
+- `ANDROID_UPLOAD_KEYSTORE_BASE64` is the same keystore, encoded as text so it can be stored in GitHub Secrets and reconstructed in CI.
+- Even though it is Base64 text, it is still sensitive private signing material.
+- For PKCS12 keystores, `key password` should match `store password`.
+- You may delete the local `.jks` after setup, but only after storing a secure backup (encrypted cloud drive/password manager/secure offline copy).
+- If you lose this signing key, future updates for the same Android package cannot be signed as the same app.
+- Creating a new key later is possible, but it behaves like a different signer identity and is not a safe default for updating an already-published app.
+
+Quick generation example:
+
+```bash
+keytool -genkeypair \
+  -v \
+  -storetype PKCS12 \
+  -keystore android/app/upload-keystore.jks \
+  -alias ai-vision-upload \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000
+```
+
+Convert keystore to GitHub secret value:
+
+```bash
+base64 -i android/app/upload-keystore.jks | pbcopy
+```
+
+Service account guidance:
+
+- Create or use a service account for CI
+- Grant App Distribution permissions in the Firebase project
+- Store the JSON key only in GitHub Secrets
+
 ### 3. Firebase Setup
 
 1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com) (free Spark plan)
@@ -206,6 +272,11 @@ Without this plugin, the app will crash at startup with: `No Firebase App '[DEFA
 4. Paste your Web client ID into `.env`:
    ```
    GOOGLE_WEB_CLIENT_ID=your-actual-client-id.apps.googleusercontent.com
+   TURN_CREDENTIALS_ENDPOINT=https://your-worker-subdomain.workers.dev
+   # Optional fallback static TURN (not recommended)
+   TURN_URL=turn:turn.cloudflare.com:3478
+   TURN_USERNAME=your-turn-username
+   TURN_CREDENTIAL=your-turn-credential
    ```
 
 **Important:** `google-services.json`, `GoogleService-Info.plist`, and `.env` files are gitignored and will NOT be committed. Each developer must set up their own Firebase project and `.env` file.
@@ -218,9 +289,63 @@ cd ios && pod install && cd ..
 
 ### STUN/TURN Configuration
 
-Default configuration uses Google's free STUN servers and Cloudflare Calls for TURN relay. To use your own:
+The app always includes Google's free STUN servers.
 
-Edit `src/config/webrtc.ts` to set custom STUN/TURN endpoints.
+Recommended TURN setup uses short-lived credentials from a Cloudflare Worker:
+
+- Set `TURN_CREDENTIALS_ENDPOINT` in `.env`
+- Deploy `workers/turn-credentials-worker.js` with Wrangler
+- Configure Worker env vars: `FIREBASE_PROJECT_ID`, `CF_TURN_KEY_ID`, `CF_TURN_TTL_SECONDS`, `CF_TURN_API_TOKEN`
+- The app sends `Authorization: Bearer <Firebase ID token>` automatically when requesting TURN credentials
+
+Optional fallback (less secure): static TURN credentials via `.env` (`TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL`).
+If neither dynamic nor static TURN is configured, the app falls back to STUN-only mode.
+
+#### Worker Auth Logic (Simple)
+
+When the app asks for TURN credentials, the flow is:
+
+1. The app signs in with Firebase Auth and gets an ID token.
+2. The app calls your Worker endpoint with `Authorization: Bearer <ID token>`.
+3. The Worker verifies the token signature using Google's public keys.
+4. The Worker also checks:
+   - `iss` (issuer) matches your Firebase project
+   - `aud` (audience) matches your Firebase project
+   - token is not expired (`exp`) and has valid issue time (`iat`)
+5. If `ALLOWED_UIDS` is set, only those Firebase user IDs can receive TURN credentials.
+6. Only after passing all checks does the Worker request short-lived TURN credentials from Cloudflare and return them to the app.
+
+This means your long-lived TURN API token stays server-side (Worker secret) and is never shipped in the app.
+
+### Cloudflare Worker TURN Setup (No Firebase Blaze Needed)
+
+1. Install Wrangler and log in:
+   ```bash
+   npm install -g wrangler
+   wrangler login
+   ```
+2. Copy worker config template and fill your TURN key id:
+   ```bash
+   cd workers
+   cp wrangler.toml.example wrangler.toml
+   ```
+   Update `wrangler.toml`:
+   - `FIREBASE_PROJECT_ID=<your-firebase-project-id>`
+   - `CF_TURN_KEY_ID=<your-cloudflare-turn-key-id>`
+   - `CF_TURN_TTL_SECONDS=600`
+   - Optional: `ALLOWED_UIDS=<your-firebase-uid>` to allow only your account
+3. Set TURN API token as Worker secret:
+   ```bash
+   wrangler secret put CF_TURN_API_TOKEN
+   ```
+4. Deploy worker:
+   ```bash
+   wrangler deploy turn-credentials-worker.js
+   ```
+5. Copy Worker URL and set it in app `.env`:
+   ```bash
+   TURN_CREDENTIALS_ENDPOINT=https://<your-worker-subdomain>.workers.dev
+   ```
 
 ## Running the App
 
@@ -418,14 +543,16 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
   ```
 - **Sound detection** — The YAMNet classification logic is implemented but audio capture integration (`react-native-audio-api`) is deferred. The package caused Android native build failures (missing codegen/JNI directory) and was removed. Sound detection will be wired up in a future update when the package compatibility is resolved.
 - **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames using a custom **PixelCopy native module** (`ScreenCaptureModule.kt`) that finds the SurfaceView in the view hierarchy and uses Android's `PixelCopy.request()` to capture its content. Standard screenshot APIs (`captureScreen`, `ViewShot`) cannot capture SurfaceView/RTCView on Android — they render on a separate hardware surface. This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
-- **Clip recording disabled** — Local clip recording is currently disabled. It previously depended on VisionCamera's `startRecording` API, which was removed during the camera unification refactor. A replacement recording mechanism is planned.
+- **Clip recording format** — Event clips are recorded as a sequence of JPEG frames (PixelCopy snapshots) under the app document directory (`clips/clip_<timestamp>/`). `clipPath` stores the metadata JSON path for each clip. This keeps recording compatible with the WebRTC camera pipeline without opening a second camera session.
 - **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with PixelCopy snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
-- **Audio routing** — WebRTC defaults audio to the earpiece on Android. A custom `AudioRoutingModule` native module forces speakerphone mode on the viewer side when a remote stream connects. It retries multiple times to override WebRTC's audio routing.
+- **Audio routing** — WebRTC defaults audio to the earpiece on Android. A custom `AudioRoutingModule` native module forces loudspeaker on the viewer side when a remote stream connects. On Android 12+ (API 31), it uses the `setCommunicationDevice()` API since the legacy `setSpeakerphoneOn()` is deprecated and silently ignored. It retries multiple times to override WebRTC's audio routing.
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
 - **Firebase namespaced API deprecation** — The app currently uses Firebase's namespaced API (v21), which shows deprecation warnings. These are non-blocking. Migration to the modular API (v22) is planned but not required for functionality.
 - **Device registration** — Device registration now checks for an existing device with the same user and role before creating a new document. Previously, selecting Camera/Viewer role would create a duplicate device entry in Firestore on every tap.
 - **Signaling listener fix** — The `onAnswer` and `onOffer` Firestore listeners now fire only once (using `.get()` after detecting a change) instead of re-triggering on every document update. Previously, the listeners would repeatedly process the same SDP, causing excessive Firestore reads/writes and unstable connections.
 - **Session auto-rebuild** — The camera automatically rebuilds the WebRTC session when a viewer disconnects, allowing the viewer to reconnect without the camera needing to be restarted.
+- **Camera name editing** — Cameras can be renamed from both the camera settings screen (tap the name card) and the viewer device list (tap the camera name in the card header). Changes are saved to Firestore and reflected immediately in the local store.
+- **Signaling security** — Firestore rules enforce that only the camera owner can create sessions, and viewers can only write answers/candidates to sessions belonging to cameras they own. The signaling service validates `userId` ownership before creating or joining sessions.
 
 ### Plan 3: Streaming & Viewer (In Progress)
 
@@ -443,7 +570,11 @@ WebRTC P2P streaming, Firestore signaling, viewer live view, FCM push notificati
 
 #### Cloud Functions Setup
 
-To deploy the FCM push notification trigger:
+Cloud Functions are optional and only used for FCM push fan-out:
+
+- `onEventCreated` sends push notifications when new events are created
+
+Deploy functions only if you want push notifications:
 
 ```bash
 cd functions
@@ -452,7 +583,7 @@ npm run build
 firebase deploy --only functions
 ```
 
-**Note:** Cloud Functions require the Firebase Blaze (pay-as-you-go) plan. The Spark free plan does not support Cloud Functions deployment.
+If you stay on Firebase Spark (no billing), skip this section. TURN credential issuance can run fully on Cloudflare Worker as documented above.
 
 ## Contributing
 

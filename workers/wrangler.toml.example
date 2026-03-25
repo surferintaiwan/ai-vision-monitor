@@ -1,0 +1,10 @@
+name = "ai-vision-turn-credentials"
+main = "turn-credentials-worker.js"
+compatibility_date = "2026-03-25"
+
+[vars]
+FIREBASE_PROJECT_ID = "YOUR_FIREBASE_PROJECT_ID"
+CF_TURN_KEY_ID = "YOUR_TURN_KEY_ID"
+CF_TURN_TTL_SECONDS = "600"
+# Optional extra hardening: comma-separated Firebase UIDs allowed to call this Worker.
+# ALLOWED_UIDS = "uid_1,uid_2"

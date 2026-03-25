@@ -4,6 +4,7 @@ node_modules/
 ios/Pods/
 *.jks
 *.keystore
+*.credentials.txt
 android/app/debug.keystore
 *.p8
 *.p12

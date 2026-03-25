@@ -1,0 +1,137 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare runtime env
+        run: |
+          if [ -z "${{ secrets.GOOGLE_WEB_CLIENT_ID }}" ]; then
+            echo "Missing required secret: GOOGLE_WEB_CLIENT_ID" >&2
+            exit 1
+          fi
+
+          cat > .env <<EOF
+          GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          TURN_CREDENTIALS_ENDPOINT=${{ secrets.TURN_CREDENTIALS_ENDPOINT }}
+          TURN_URL=${{ secrets.TURN_URL }}
+          TURN_USERNAME=${{ secrets.TURN_USERNAME }}
+          TURN_CREDENTIAL=${{ secrets.TURN_CREDENTIAL }}
+          EOF
+
+      - name: Write google-services.json
+        run: |
+          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "Missing required secret: GOOGLE_SERVICES_JSON" >&2
+            exit 1
+          fi
+
+          cat > android/app/google-services.json <<EOF
+          ${{ secrets.GOOGLE_SERVICES_JSON }}
+          EOF
+
+      - name: Prepare release keystore
+        run: |
+          if [ -z "${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}" ]; then
+            echo "Missing required secret: ANDROID_UPLOAD_KEYSTORE_BASE64" >&2
+            exit 1
+          fi
+          if [ -z "${{ secrets.AI_VISION_UPLOAD_STORE_PASSWORD }}" ]; then
+            echo "Missing required secret: AI_VISION_UPLOAD_STORE_PASSWORD" >&2
+            exit 1
+          fi
+          if [ -z "${{ secrets.AI_VISION_UPLOAD_KEY_ALIAS }}" ]; then
+            echo "Missing required secret: AI_VISION_UPLOAD_KEY_ALIAS" >&2
+            exit 1
+          fi
+          if [ -z "${{ secrets.AI_VISION_UPLOAD_KEY_PASSWORD }}" ]; then
+            echo "Missing required secret: AI_VISION_UPLOAD_KEY_PASSWORD" >&2
+            exit 1
+          fi
+
+          echo "${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<EOF
+          AI_VISION_UPLOAD_STORE_FILE=upload-keystore.jks
+          AI_VISION_UPLOAD_STORE_PASSWORD=${{ secrets.AI_VISION_UPLOAD_STORE_PASSWORD }}
+          AI_VISION_UPLOAD_KEY_ALIAS=${{ secrets.AI_VISION_UPLOAD_KEY_ALIAS }}
+          AI_VISION_UPLOAD_KEY_PASSWORD=${{ secrets.AI_VISION_UPLOAD_KEY_PASSWORD }}
+          EOF
+
+      - name: Build release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Prepare Firebase credentials
+        run: |
+          if [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" ]; then
+            echo "Missing required secret: FIREBASE_SERVICE_ACCOUNT_JSON" >&2
+            exit 1
+          fi
+          if [ -z "${{ secrets.FIREBASE_APP_ID_ANDROID }}" ]; then
+            echo "Missing required secret: FIREBASE_APP_ID_ANDROID" >&2
+            exit 1
+          fi
+          if [ -z "${{ secrets.FIREBASE_TESTERS }}" ] && [ -z "${{ secrets.FIREBASE_GROUPS }}" ]; then
+            echo "Set at least one of FIREBASE_TESTERS or FIREBASE_GROUPS" >&2
+            exit 1
+          fi
+
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' > /tmp/firebase-service-account.json
+
+      - name: Distribute APK to Firebase App Distribution
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-service-account.json
+          FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+          FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
+          FIREBASE_GROUPS: ${{ secrets.FIREBASE_GROUPS }}
+        run: |
+          args=(
+            appdistribution:distribute
+            android/app/build/outputs/apk/release/app-release.apk
+            --app "$FIREBASE_APP_ID_ANDROID"
+            --release-notes "$GITHUB_SHA"
+          )
+
+          if [ -n "$FIREBASE_TESTERS" ]; then
+            args+=(--testers "$FIREBASE_TESTERS")
+          fi
+
+          if [ -n "$FIREBASE_GROUPS" ]; then
+            args+=(--groups "$FIREBASE_GROUPS")
+          fi
+
+          firebase "${args[@]}"

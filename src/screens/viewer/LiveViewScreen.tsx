@@ -7,6 +7,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useStreamStore } from '@/stores/streamStore';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useAuthStore } from '@/stores/authStore';
+import { getSessionIceServers } from '@/services/webrtc/turnCredentials';
 import {
   createPeerConnection,
   handleOffer,
@@ -75,6 +76,8 @@ export function LiveViewScreen(): React.JSX.Element {
         currentSessionId = sessionId;
         setSessionId(sessionId);
 
+        const iceServers = await getSessionIceServers();
+
         // Create peer connection (viewer side — receives stream)
         createPeerConnection({
           onIceCandidate: (candidate) => {
@@ -90,7 +93,7 @@ export function LiveViewScreen(): React.JSX.Element {
             else if (state === 'disconnected') setConnectionStatus('disconnected');
             else if (state === 'failed') setConnectionStatus('failed');
           },
-        });
+        }, iceServers);
 
         // Listen for the camera's offer
         unsubOffer = onOffer(sessionId, async (offerSdp) => {
@@ -141,7 +144,7 @@ export function LiveViewScreen(): React.JSX.Element {
         <RTCView
           streamURL={streamUrl}
           style={styles.stream}
-          objectFit="cover"
+          objectFit="contain"
         />
       ) : (
         <View style={styles.connecting}>

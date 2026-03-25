@@ -7,12 +7,20 @@ import {
 } from 'react-native-webrtc';
 import { DEFAULT_WEBRTC_CONFIG } from '@/config/webrtc';
 
-const ICE_SERVERS = [
-  ...DEFAULT_WEBRTC_CONFIG.stunServers.map((url) => ({ urls: url })),
-  ...DEFAULT_WEBRTC_CONFIG.turnServers
-    .filter((s) => s.username && s.credential)
-    .map((s) => ({ urls: s.urls, username: s.username, credential: s.credential })),
-];
+export interface IceServerConfig {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+function getDefaultIceServers(): IceServerConfig[] {
+  return [
+    ...DEFAULT_WEBRTC_CONFIG.stunServers.map((url) => ({ urls: url })),
+    ...DEFAULT_WEBRTC_CONFIG.turnServers
+      .filter((s) => s.username && s.credential)
+      .map((s) => ({ urls: s.urls, username: s.username, credential: s.credential })),
+  ];
+}
 
 export interface PeerCallbacks {
   onIceCandidate: (candidate: any) => void;
@@ -23,10 +31,13 @@ export interface PeerCallbacks {
 let peerConnection: RTCPeerConnection | null = null;
 let localStream: MediaStream | null = null;
 
-export function createPeerConnection(callbacks: PeerCallbacks): RTCPeerConnection {
+export function createPeerConnection(
+  callbacks: PeerCallbacks,
+  iceServers: IceServerConfig[] = getDefaultIceServers(),
+): RTCPeerConnection {
   closePeerConnection();
 
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({ iceServers });
 
   // Use type assertion to access event handlers
   const pcAny = pc as any;

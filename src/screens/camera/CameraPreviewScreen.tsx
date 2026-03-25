@@ -13,7 +13,9 @@ import { signOut } from '@/services/firebase/auth';
 import { resetMotionDetector } from '@/services/detection/motionDetector';
 import { detectPersonInImage } from '@/services/detection/personDetector';
 import { EventManager, ManagedEvent } from '@/services/detection/eventManager';
+import { recordEventClip } from '@/services/recording/clipRecorder';
 import { useStreamStore } from '@/stores/streamStore';
+import { getSessionIceServers } from '@/services/webrtc/turnCredentials';
 import {
   createPeerConnection,
   createOffer,
@@ -101,15 +103,22 @@ export function CameraPreviewScreen(): React.JSX.Element {
     const handler = async (event: ManagedEvent) => {
       if (!deviceId || !userId) return;
 
-      // Clip recording is not available with WebRTC camera (no VisionCamera)
+      const currentDevice = useDeviceStore
+        .getState()
+        .devices
+        .find((d) => d.id === deviceId);
+      const recordingDurationSec = currentDevice?.settings.recordingDurationSec ?? 10;
+
+      const clip = await recordEventClip(event.timestamp, recordingDurationSec);
+
       await createEvent({
         deviceId,
         userId,
         type: event.type,
         soundClass: event.soundClass,
         confidence: event.confidence,
-        clipPath: null,
-        clipDurationSec: 0,
+        clipPath: clip.clipPath,
+        clipDurationSec: clip.clipDurationSec,
       }).catch((err) => console.warn('Failed to log event:', err));
     };
 
@@ -159,6 +168,8 @@ export function CameraPreviewScreen(): React.JSX.Element {
         currentSessionId = await createSession(currentDeviceId, currentUserId);
         setSessionId(currentSessionId);
 
+        const iceServers = await getSessionIceServers();
+
         // Create peer connection
         createPeerConnection({
           onIceCandidate: (candidate) => {
@@ -178,7 +189,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
               }, 2000);
             }
           },
-        });
+        }, iceServers);
 
         // Create offer (grabs camera via getUserMedia + adds tracks)
         const offer = await createOffer();
