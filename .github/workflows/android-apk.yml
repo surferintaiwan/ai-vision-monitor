@@ -10,7 +10,115 @@ permissions:
   contents: read
 
 jobs:
+  deploy-turn-worker:
+    runs-on: ubuntu-latest
+    outputs:
+      turn_credentials_endpoint: ${{ steps.worker-url.outputs.turn_credentials_endpoint }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler
+
+      - name: Validate Cloudflare Worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_WORKER_NAME: ${{ secrets.CF_WORKER_NAME }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          CF_TURN_KEY_ID: ${{ secrets.CF_TURN_KEY_ID }}
+          CF_TURN_API_TOKEN: ${{ secrets.CF_TURN_API_TOKEN }}
+        run: |
+          required=(
+            CLOUDFLARE_API_TOKEN
+            CLOUDFLARE_ACCOUNT_ID
+            CF_WORKER_NAME
+            FIREBASE_PROJECT_ID
+            CF_TURN_KEY_ID
+            CF_TURN_API_TOKEN
+          )
+
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required secret: ${name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Write wrangler.toml
+        working-directory: workers
+        env:
+          CF_WORKER_NAME: ${{ secrets.CF_WORKER_NAME }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          CF_TURN_KEY_ID: ${{ secrets.CF_TURN_KEY_ID }}
+          CF_TURN_TTL_SECONDS: ${{ secrets.CF_TURN_TTL_SECONDS }}
+          ALLOWED_UIDS: ${{ secrets.ALLOWED_UIDS }}
+        run: |
+          ttl="${CF_TURN_TTL_SECONDS:-600}"
+
+          cat > wrangler.toml <<EOF
+          name = "${CF_WORKER_NAME}"
+          main = "turn-credentials-worker.js"
+          compatibility_date = "2026-03-25"
+
+          [vars]
+          FIREBASE_PROJECT_ID = "${FIREBASE_PROJECT_ID}"
+          CF_TURN_KEY_ID = "${CF_TURN_KEY_ID}"
+          CF_TURN_TTL_SECONDS = "${ttl}"
+          EOF
+
+          if [ -n "${ALLOWED_UIDS}" ]; then
+            echo "ALLOWED_UIDS = \"${ALLOWED_UIDS}\"" >> wrangler.toml
+          fi
+
+      - name: Upsert Worker runtime secret (CF_TURN_API_TOKEN)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_TURN_API_TOKEN: ${{ secrets.CF_TURN_API_TOKEN }}
+        run: |
+          printf '%s' "$CF_TURN_API_TOKEN" | \
+            wrangler secret put CF_TURN_API_TOKEN --config workers/wrangler.toml
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler deploy --config workers/wrangler.toml
+
+      - name: Resolve deployed Worker URL
+        id: worker-url
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_WORKER_NAME: ${{ secrets.CF_WORKER_NAME }}
+        run: |
+          subdomain=$(
+            curl -fsSL \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+              | node -e "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>{try{const j=JSON.parse(s);process.stdout.write((j.result&&j.result.subdomain)||'')}catch{process.stdout.write('')}})"
+          )
+
+          if [ -z "$subdomain" ]; then
+            echo "Failed to resolve workers.dev subdomain." >&2
+            exit 1
+          fi
+
+          endpoint="https://${CF_WORKER_NAME}.${subdomain}.workers.dev"
+          echo "turn_credentials_endpoint=${endpoint}" >> "$GITHUB_OUTPUT"
+          echo "Resolved TURN endpoint: ${endpoint}"
+
   build-apk:
+    needs: deploy-turn-worker
     runs-on: ubuntu-latest
 
     steps:
@@ -38,10 +146,14 @@ jobs:
             echo "Missing required secret: GOOGLE_WEB_CLIENT_ID" >&2
             exit 1
           fi
+          if [ -z "${{ needs.deploy-turn-worker.outputs.turn_credentials_endpoint }}" ]; then
+            echo "Missing TURN endpoint from deploy-turn-worker output" >&2
+            exit 1
+          fi
 
           cat > .env <<EOF
           GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}
-          TURN_CREDENTIALS_ENDPOINT=${{ secrets.TURN_CREDENTIALS_ENDPOINT }}
+          TURN_CREDENTIALS_ENDPOINT=${{ needs.deploy-turn-worker.outputs.turn_credentials_endpoint }}
           TURN_URL=${{ secrets.TURN_URL }}
           TURN_USERNAME=${{ secrets.TURN_USERNAME }}
           TURN_CREDENTIAL=${{ secrets.TURN_CREDENTIAL }}

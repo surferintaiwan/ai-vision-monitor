@@ -156,9 +156,11 @@ Add them to your local `~/.gradle/gradle.properties` (or CI secret env injection
 
 This repository includes `.github/workflows/android-apk.yml` that:
 
-1. Builds a signed Android release APK on each push to `main`
-2. Uploads the APK to **Firebase App Distribution**
-3. Does **not** upload APKs to GitHub Releases or GitHub Artifacts
+1. Deploys Cloudflare TURN Worker on each push to `main`
+2. Automatically resolves Worker URL and injects it as `TURN_CREDENTIALS_ENDPOINT` during build
+3. Builds a signed Android release APK
+4. Uploads the APK to **Firebase App Distribution**
+5. Does **not** upload APKs to GitHub Releases or GitHub Artifacts
 
 Required GitHub repository secrets:
 
@@ -170,8 +172,22 @@ Required GitHub repository secrets:
   Your Android release keystore values
 - `ANDROID_UPLOAD_KEYSTORE_BASE64`  
   Base64 content of your release keystore (`.jks`)
-- `TURN_CREDENTIALS_ENDPOINT`  
-  URL of your deployed Cloudflare TURN credentials Worker
+- `CLOUDFLARE_API_TOKEN`  
+  Cloudflare Dashboard → My Profile → API Tokens (permissions for Worker deploy + read workers subdomain)
+- `CLOUDFLARE_ACCOUNT_ID`  
+  Cloudflare Dashboard → right sidebar / Workers & Pages account details
+- `CF_WORKER_NAME`  
+  Your Worker script name (for example `ai-vision-turn-credentials`)
+- `FIREBASE_PROJECT_ID`  
+  Firebase project ID used for ID token verification
+- `CF_TURN_KEY_ID`  
+  Cloudflare Calls TURN key ID (Realtime/TURN settings)
+- `CF_TURN_API_TOKEN`  
+  Cloudflare Calls API token used by Worker at runtime to mint short-lived TURN credentials
+- `CF_TURN_TTL_SECONDS` (optional)  
+  TURN credential TTL in seconds (`600` recommended)
+- `ALLOWED_UIDS` (optional)  
+  Comma-separated Firebase UIDs allowed to call TURN credentials endpoint
 - `TURN_URL` / `TURN_USERNAME` / `TURN_CREDENTIAL` (optional fallback TURN)  
   Static TURN credentials (only if you want fallback mode)
 - `FIREBASE_SERVICE_ACCOUNT_JSON`  
@@ -182,6 +198,8 @@ Required GitHub repository secrets:
   Comma-separated tester emails for App Distribution
 - `FIREBASE_GROUPS` (optional)  
   Comma-separated App Distribution group aliases
+
+`FIREBASE_TESTERS` and `FIREBASE_GROUPS` are individually optional, but CI requires at least one of them to be set.
 
 #### Keystore + BASE64 (Why and How)
 
@@ -313,6 +331,7 @@ When the app asks for TURN credentials, the flow is:
    - `aud` (audience) matches your Firebase project
    - token is not expired (`exp`) and has valid issue time (`iat`)
 5. If `ALLOWED_UIDS` is set, only those Firebase user IDs can receive TURN credentials.
+   If `ALLOWED_UIDS` is not set, any valid Firebase-authenticated user in your project can request TURN credentials.
 6. Only after passing all checks does the Worker request short-lived TURN credentials from Cloudflare and return them to the app.
 
 This means your long-lived TURN API token stays server-side (Worker secret) and is never shipped in the app.
