@@ -1,7 +1,9 @@
 package com.aivisionmonitor
 
 import android.app.Application
+import android.content.Context
 import android.content.res.Configuration
+import android.media.AudioManager
 
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -36,6 +38,9 @@ class MainApplication : Application(), ReactApplication {
     }
     loadReactNative(this)
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
+
+    // Note: Speakerphone is controlled by AudioRoutingModule from JS side.
+    // It's called from the viewer's LiveViewScreen when a remote stream connects.
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

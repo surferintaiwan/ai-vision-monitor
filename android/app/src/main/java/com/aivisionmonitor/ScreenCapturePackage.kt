@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class ScreenCapturePackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(ScreenCaptureModule(reactContext))
+        return listOf(ScreenCaptureModule(reactContext), AudioRoutingModule(reactContext))
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
