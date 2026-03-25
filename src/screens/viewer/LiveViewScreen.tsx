@@ -6,6 +6,7 @@ const { AudioRoutingModule } = NativeModules;
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useStreamStore } from '@/stores/streamStore';
 import { useDeviceStore } from '@/stores/deviceStore';
+import { useAuthStore } from '@/stores/authStore';
 import {
   createPeerConnection,
   handleOffer,
@@ -31,6 +32,7 @@ export function LiveViewScreen(): React.JSX.Element {
   const { cameraDeviceId } = route.params;
 
   const deviceId = useDeviceStore((s) => s.deviceId);
+  const user = useAuthStore((s) => s.user);
   const connectionStatus = useStreamStore((s) => s.connectionStatus);
   const remoteStream = useStreamStore((s) => s.remoteStream);
   const setConnectionStatus = useStreamStore((s) => s.setConnectionStatus);
@@ -55,10 +57,15 @@ export function LiveViewScreen(): React.JSX.Element {
 
     async function connectToCamera() {
       try {
+        if (!user) {
+          setConnectionStatus('failed');
+          return;
+        }
+
         setConnectionStatus('connecting');
 
         // Find the camera's active session
-        const sessionId = await findActiveSession(cameraDeviceId);
+        const sessionId = await findActiveSession(cameraDeviceId, user.uid);
         if (!sessionId) {
           console.warn('No active session found for camera');
           setConnectionStatus('failed');
@@ -89,7 +96,7 @@ export function LiveViewScreen(): React.JSX.Element {
         unsubOffer = onOffer(sessionId, async (offerSdp) => {
           try {
             const answer = await handleOffer(offerSdp);
-            await setAnswer(sessionId, deviceId ?? 'viewer', answer.sdp!);
+            await setAnswer(sessionId, deviceId ?? 'viewer', user.uid, answer.sdp!);
           } catch (err) {
             console.warn('Failed to handle offer:', err);
           }
@@ -118,7 +125,7 @@ export function LiveViewScreen(): React.JSX.Element {
       closePeerConnection();
       resetStream();
     };
-  }, [cameraDeviceId, deviceId, setConnectionStatus, setRemoteStream, setSessionId, resetStream]);
+  }, [cameraDeviceId, deviceId, user, setConnectionStatus, setRemoteStream, setSessionId, resetStream]);
 
   function handleDisconnect() {
     closePeerConnection();

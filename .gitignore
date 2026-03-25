@@ -3,6 +3,8 @@ node_modules/
 .expo/
 ios/Pods/
 *.jks
+*.keystore
+android/app/debug.keystore
 *.p8
 *.p12
 *.key

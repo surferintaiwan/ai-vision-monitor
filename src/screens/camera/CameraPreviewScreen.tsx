@@ -135,7 +135,9 @@ export function CameraPreviewScreen(): React.JSX.Element {
 
   // Set up WebRTC: grab camera + streaming session (auto-reconnect on disconnect)
   useEffect(() => {
-    if (!deviceId) return;
+    if (!deviceId || !userId) return;
+    const currentDeviceId: string = deviceId;
+    const currentUserId: string = userId;
 
     let unsubAnswer: (() => void) | null = null;
     let unsubCandidates: (() => void) | null = null;
@@ -154,7 +156,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
         setConnectionStatus('connecting');
 
         // Create signaling session
-        currentSessionId = await createSession(deviceId!);
+        currentSessionId = await createSession(currentDeviceId, currentUserId);
         setSessionId(currentSessionId);
 
         // Create peer connection
@@ -223,7 +225,7 @@ export function CameraPreviewScreen(): React.JSX.Element {
       resetStream();
       setLocalStream(null);
     };
-  }, [deviceId, setConnectionStatus, setSessionId, resetStream]);
+  }, [deviceId, userId, setConnectionStatus, setSessionId, resetStream]);
 
   async function handleSignOut() {
     setDetecting(false);

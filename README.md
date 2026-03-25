@@ -138,6 +138,20 @@ java -version
 echo $ANDROID_HOME
 ```
 
+### Android Release Signing (Required for Production)
+
+Do not ship release APK/AAB files with `debug.keystore`.
+This project expects release signing secrets to be provided via Gradle properties:
+
+```properties
+AI_VISION_UPLOAD_STORE_FILE=/absolute/path/to/your-release.keystore
+AI_VISION_UPLOAD_STORE_PASSWORD=your_store_password
+AI_VISION_UPLOAD_KEY_ALIAS=your_key_alias
+AI_VISION_UPLOAD_KEY_PASSWORD=your_key_password
+```
+
+Add them to your local `~/.gradle/gradle.properties` (or CI secret env injection), not this repository.
+
 ### 3. Firebase Setup
 
 1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com) (free Spark plan)

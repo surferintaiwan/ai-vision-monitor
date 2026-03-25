@@ -2,10 +2,15 @@ import firestore from '@react-native-firebase/firestore';
 
 const sessionsCollection = () => firestore().collection('sessions');
 
-export async function createSession(cameraDeviceId: string): Promise<string> {
+export async function createSession(
+  cameraDeviceId: string,
+  cameraUserId: string,
+): Promise<string> {
   const ref = await sessionsCollection().add({
     cameraDeviceId,
+    cameraUserId,
     viewerDeviceId: null,
+    viewerUserId: null,
     offer: null,
     answer: null,
     status: 'waiting',
@@ -21,11 +26,13 @@ export async function setOffer(sessionId: string, sdp: string): Promise<void> {
 export async function setAnswer(
   sessionId: string,
   viewerDeviceId: string,
+  viewerUserId: string,
   sdp: string,
 ): Promise<void> {
   await sessionsCollection().doc(sessionId).update({
     answer: sdp,
     viewerDeviceId,
+    viewerUserId,
     status: 'connected',
   });
 }
@@ -106,9 +113,11 @@ export async function closeSession(sessionId: string): Promise<void> {
 
 export async function findActiveSession(
   cameraDeviceId: string,
+  cameraUserId: string,
 ): Promise<string | null> {
   const snapshot = await sessionsCollection()
     .where('cameraDeviceId', '==', cameraDeviceId)
+    .where('cameraUserId', '==', cameraUserId)
     .where('status', '==', 'waiting')
     .limit(1)
     .get();

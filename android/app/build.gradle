@@ -67,6 +67,12 @@ react {
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+def hasReleaseSigning = [
+    "AI_VISION_UPLOAD_STORE_FILE",
+    "AI_VISION_UPLOAD_STORE_PASSWORD",
+    "AI_VISION_UPLOAD_KEY_ALIAS",
+    "AI_VISION_UPLOAD_KEY_PASSWORD",
+].every { project.hasProperty(it) && project.property(it) }
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -104,6 +110,14 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(AI_VISION_UPLOAD_STORE_FILE)
+                storePassword AI_VISION_UPLOAD_STORE_PASSWORD
+                keyAlias AI_VISION_UPLOAD_KEY_ALIAS
+                keyPassword AI_VISION_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
@@ -112,7 +126,9 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -130,6 +146,10 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+}
+
+if (!hasReleaseSigning) {
+    logger.lifecycle("Release signing keys are not configured. Set AI_VISION_UPLOAD_* properties before shipping release builds.")
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
