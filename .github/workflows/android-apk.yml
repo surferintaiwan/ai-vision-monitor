@@ -196,6 +196,77 @@ jobs:
           AI_VISION_UPLOAD_KEY_PASSWORD=${{ secrets.AI_VISION_UPLOAD_KEY_PASSWORD }}
           EOF
 
+      - name: Validate Google Sign-In config
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          AI_VISION_UPLOAD_STORE_PASSWORD: ${{ secrets.AI_VISION_UPLOAD_STORE_PASSWORD }}
+          AI_VISION_UPLOAD_KEY_ALIAS: ${{ secrets.AI_VISION_UPLOAD_KEY_ALIAS }}
+          AI_VISION_UPLOAD_KEY_PASSWORD: ${{ secrets.AI_VISION_UPLOAD_KEY_PASSWORD }}
+        run: |
+          release_sha1=$(
+            keytool -list -v \
+              -keystore android/app/upload-keystore.jks \
+              -storepass "$AI_VISION_UPLOAD_STORE_PASSWORD" \
+              -alias "$AI_VISION_UPLOAD_KEY_ALIAS" \
+              -keypass "$AI_VISION_UPLOAD_KEY_PASSWORD" |
+            awk -F': ' '/SHA1:/{print $2; exit}'
+          )
+
+          if [ -z "$release_sha1" ]; then
+            echo "Failed to read release keystore SHA-1 fingerprint" >&2
+            exit 1
+          fi
+
+          normalized_release_sha1=$(printf '%s' "$release_sha1" | tr '[:upper:]' '[:lower:]' | tr -d ':')
+          export NORMALIZED_RELEASE_SHA1="$normalized_release_sha1"
+
+          node <<'EOF'
+          const fs = require('fs');
+
+          const packageName = 'com.aivisionmonitor';
+          const googleServices = JSON.parse(
+            fs.readFileSync('android/app/google-services.json', 'utf8'),
+          );
+          const clients = googleServices.client ?? [];
+
+          const androidOauthClients = clients.flatMap((client) =>
+            (client.oauth_client ?? []).filter(
+              (oauthClient) =>
+                oauthClient.client_type === 1 &&
+                oauthClient.android_info?.package_name === packageName,
+            ),
+          );
+          const webOauthClients = clients.flatMap((client) =>
+            (client.oauth_client ?? []).filter(
+              (oauthClient) => oauthClient.client_type === 3,
+            ),
+          );
+
+          const androidCertificateHashes = androidOauthClients
+            .map((oauthClient) => oauthClient.android_info?.certificate_hash?.toLowerCase())
+            .filter(Boolean);
+          const webClientIds = webOauthClients
+            .map((oauthClient) => oauthClient.client_id)
+            .filter(Boolean);
+
+          if (!androidCertificateHashes.includes(process.env.NORMALIZED_RELEASE_SHA1)) {
+            console.error(
+              `Release keystore SHA-1 ${process.env.NORMALIZED_RELEASE_SHA1} is missing from GOOGLE_SERVICES_JSON for ${packageName}. Add the release SHA-1 to Firebase, download a fresh google-services.json, and update the secret.`,
+            );
+            process.exit(1);
+          }
+
+          if (!webClientIds.includes(process.env.GOOGLE_WEB_CLIENT_ID)) {
+            console.error(
+              `GOOGLE_WEB_CLIENT_ID does not match the Web client ID in GOOGLE_SERVICES_JSON. Expected one of: ${webClientIds.join(', ')}`,
+            );
+            process.exit(1);
+          }
+
+          console.log(`Validated Google Sign-In config for ${packageName}`);
+          console.log(`Release SHA-1: ${process.env.NORMALIZED_RELEASE_SHA1}`);
+          EOF
+
       - name: Build release APK
         run: |
           cd android
