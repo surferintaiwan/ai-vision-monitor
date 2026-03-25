@@ -176,8 +176,6 @@ Required GitHub repository secrets:
   Cloudflare Dashboard → My Profile → API Tokens (permissions for Worker deploy + read workers subdomain)
 - `CLOUDFLARE_ACCOUNT_ID`  
   Cloudflare Dashboard → right sidebar / Workers & Pages account details
-- `CF_WORKER_NAME`  
-  Your Worker script name (for example `ai-vision-turn-credentials`)
 - `FIREBASE_PROJECT_ID`  
   Firebase project ID used for ID token verification
 - `CF_TURN_KEY_ID`  
@@ -200,6 +198,11 @@ Required GitHub repository secrets:
   Comma-separated App Distribution group aliases
 
 `FIREBASE_TESTERS` and `FIREBASE_GROUPS` are individually optional, but CI requires at least one of them to be set.
+
+Repository variable (not secret):
+
+- `CF_WORKER_NAME`  
+  Worker script name (for example `ai-vision-turn`). Use **Repository Variables** instead of Secrets to avoid GitHub masking this value in cross-job outputs.
 
 #### Keystore + BASE64 (Why and How)
 
