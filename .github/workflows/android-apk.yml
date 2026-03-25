@@ -13,7 +13,7 @@ jobs:
   deploy-turn-worker:
     runs-on: ubuntu-latest
     outputs:
-      turn_credentials_endpoint: ${{ steps.worker-url.outputs.turn_credentials_endpoint }}
+      turn_credentials_endpoint: ${{ steps['worker-url'].outputs.turn_credentials_endpoint }}
 
     steps:
       - name: Checkout
@@ -146,14 +146,14 @@ jobs:
             echo "Missing required secret: GOOGLE_WEB_CLIENT_ID" >&2
             exit 1
           fi
-          if [ -z "${{ needs.deploy-turn-worker.outputs.turn_credentials_endpoint }}" ]; then
+          if [ -z "${{ needs['deploy-turn-worker'].outputs.turn_credentials_endpoint }}" ]; then
             echo "Missing TURN endpoint from deploy-turn-worker output" >&2
             exit 1
           fi
 
           cat > .env <<EOF
           GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}
-          TURN_CREDENTIALS_ENDPOINT=${{ needs.deploy-turn-worker.outputs.turn_credentials_endpoint }}
+          TURN_CREDENTIALS_ENDPOINT=${{ needs['deploy-turn-worker'].outputs.turn_credentials_endpoint }}
           TURN_URL=${{ secrets.TURN_URL }}
           TURN_USERNAME=${{ secrets.TURN_USERNAME }}
           TURN_CREDENTIAL=${{ secrets.TURN_CREDENTIAL }}
