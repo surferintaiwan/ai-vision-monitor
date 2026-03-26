@@ -4,7 +4,7 @@ Turn your old smartphones into AI-powered security cameras with real-time stream
 
 ## Overview
 
-AI Vision Monitor is a free, open-source React Native app that repurposes old smartphones as security cameras. Install the same app on two devices — one acts as the **camera**, the other as the **viewer**. The camera phone performs on-device AI detection (person, motion, sound) and streams video via peer-to-peer connection. When events are detected, the viewer receives push notifications and can play back recorded clips.
+AI Vision Monitor is a free, open-source React Native app that repurposes old smartphones as security cameras. Install the same app on two devices — one acts as the **camera**, the other as the **viewer**. The camera phone performs on-device AI detection (person, motion, sound) and streams video via peer-to-peer connection. When events are detected, the viewer receives push notifications and can review the event timeline with recorded clip metadata.
 
 ### Key Features
 
@@ -41,7 +41,7 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 │                     │       │                     │
 │ • Camera capture    │       │ • Live stream view  │
 │ • AI detection      │       │ • Event list        │
-│ • Local recording   │       │ • Clip playback     │
+│ • Local recording   │       │ • Event review      │
 │ • Event triggers    │       │ • Mode selection    │
 └─────────────────────┘       └─────────────────────┘
 ```
@@ -81,7 +81,6 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 | Database | Cloud Firestore | Device registry + signaling + events |
 | Push | Firebase Cloud Messaging (FCM) | Push notifications |
 | Storage | Local (react-native-fs) | Event clips on camera phone |
-| Background | react-native-background-actions | Keep camera running in background |
 
 ## Prerequisites
 
@@ -95,7 +94,7 @@ AI Vision Monitor is a free, open-source React Native app that repurposes old sm
 ### 1. Clone and Install Dependencies
 
 ```bash
-git clone https://github.com/user/ai-vision-monitor.git
+git clone https://github.com/surferintaiwan/ai-vision-monitor.git
 cd ai-vision-monitor
 npm install
 ```
@@ -275,7 +274,7 @@ Service account guidance:
    ```bash
    cd android && ./gradlew signingReport
    ```
-   Copy the `SHA1` value from the `debug` variant output, then paste it into the SHA certificate fingerprints field in Firebase Console.
+   Copy the `SHA1` value from the `debug` variant output, then paste it into the SHA certificate fingerprints field in Firebase Console. If you also build signed Android releases in CI, add the SHA-1 for your release upload keystore too.
 4. Download `google-services.json` → place in `android/app/`
    - **Important:** Make sure to download this **after** adding the SHA-1 fingerprint. The file must contain your `oauth_client` entries for Google Sign-In to work.
 5. Skip "Add Firebase SDK" step (already configured)
@@ -287,6 +286,7 @@ If tapping Google sign-in shows `DEVELOPER_ERROR` or `code: 10`, it means Androi
 3. Add that SHA-1 to Firebase Console → Project settings → Your Android app
 4. Download a fresh `google-services.json` and replace the file in `android/app/`
 5. Confirm `GOOGLE_WEB_CLIENT_ID` in `.env` is the **Web** client ID from Firebase Authentication, not the Android client ID
+6. If the failing build is a CI/CD release build, also verify the release keystore SHA-1 is present in `google-services.json`
 
 #### Google Services Gradle Plugin
 
@@ -587,7 +587,7 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
   ```
 - **Sound detection** — The YAMNet classification logic is implemented but audio capture integration (`react-native-audio-api`) is deferred. The package caused Android native build failures (missing codegen/JNI directory) and was removed. Sound detection will be wired up in a future update when the package compatibility is resolved.
 - **Unified camera architecture** — The camera preview uses WebRTC's `getUserMedia` as the sole camera source, displayed via `RTCView`. Detection captures frames using a custom **PixelCopy native module** (`ScreenCaptureModule.kt`) that finds the SurfaceView in the view hierarchy and uses Android's `PixelCopy.request()` to capture its content. Standard screenshot APIs (`captureScreen`, `ViewShot`) cannot capture SurfaceView/RTCView on Android — they render on a separate hardware surface. This unified approach eliminates the Android camera conflict that occurred when VisionCamera and WebRTC both competed for camera access, and enables simultaneous detection and streaming.
-- **Clip recording format** — Event clips are recorded as a sequence of JPEG frames (PixelCopy snapshots) under the app document directory (`clips/clip_<timestamp>/`). `clipPath` stores the metadata JSON path for each clip. This keeps recording compatible with the WebRTC camera pipeline without opening a second camera session.
+- **Clip recording format** — Event clips are recorded as a sequence of JPEG frames (PixelCopy snapshots) under the app document directory (`clips/clip_<timestamp>/`). `clipPath` stores the metadata JSON path for each clip. This keeps recording compatible with the WebRTC camera pipeline without opening a second camera session. The current viewer UI shows clip duration metadata in the event list; in-app clip playback is not implemented yet.
 - **Detection frequency** — The detection loop runs every 2 seconds via `setInterval` with PixelCopy snapshots. This is intentional to conserve CPU/battery on old devices, but means detection is not real-time.
 - **Audio routing** — WebRTC defaults audio to the earpiece on Android. A custom `AudioRoutingModule` native module forces loudspeaker on the viewer side when a remote stream connects. On Android 12+ (API 31), it uses the `setCommunicationDevice()` API since the legacy `setSpeakerphoneOn()` is deprecated and silently ignored. It retries multiple times to override WebRTC's audio routing.
 - **Event debounce** — Same event type is suppressed for 30 seconds after triggering to prevent notification spam. Different event types (e.g., dog bark vs glass break) are debounced independently.
@@ -597,10 +597,11 @@ On-device AI detection pipeline with motion gating, ML Kit object detection, YAM
 - **Session auto-rebuild** — The camera automatically rebuilds the WebRTC session when a viewer disconnects, allowing the viewer to reconnect without the camera needing to be restarted.
 - **Camera name editing** — Cameras can be renamed from both the camera settings screen (tap the name card) and the viewer device list (tap the camera name in the card header). Changes are saved to Firestore and reflected immediately in the local store.
 - **Signaling security** — Firestore rules enforce that only the camera owner can create sessions, and viewers can only write answers/candidates to sessions belonging to cameras they own. The signaling service validates `userId` ownership before creating or joining sessions.
+- **Cross-network streaming** — TURN fallback via Cloudflare Calls has been verified for viewer access from a separate mobile data network, not just the same Wi-Fi LAN.
 
 ### Plan 3: Streaming & Viewer (In Progress)
 
-WebRTC P2P streaming, Firestore signaling, viewer live view, FCM push notifications, event list with clip playback.
+WebRTC P2P streaming, Firestore signaling, viewer live view, FCM push notifications, and an event list with clip metadata.
 
 - [x] Task 1: WebRTC peer connection service (STUN/TURN, offer/answer/ICE)
 - [x] Task 2: Firestore signaling service (session lifecycle, SDP/ICE exchange)
@@ -610,7 +611,7 @@ WebRTC P2P streaming, Firestore signaling, viewer live view, FCM push notificati
 - [x] Task 6: Event list screen (detection history timeline)
 - [x] Task 7: FCM push notifications (messaging service + Cloud Function trigger)
 - [ ] Task 8: End-to-end testing
-- [ ] Task 9: TURN server integration testing (Cloudflare Calls credentials + cross-network verification)
+- [x] Task 9: TURN server integration testing (Cloudflare Calls credentials + cross-network verification)
 
 #### Cloud Functions Setup
 
