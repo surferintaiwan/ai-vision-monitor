@@ -162,6 +162,12 @@ This repository includes `.github/workflows/android-apk.yml` that:
 4. Uploads the APK to **Firebase App Distribution**
 5. Does **not** upload APKs to GitHub Releases or GitHub Artifacts
 
+Public repo note:
+
+- GitHub-hosted runners are ephemeral, so files created during a job are not published by default.
+- This workflow only distributes the APK through Firebase App Distribution and does not upload it to GitHub Artifacts or Releases.
+- If this repository is public, GitHub Actions logs are publicly visible. Never print secrets to logs, enable shell tracing like `set -x`, or add steps that echo generated secret files such as `.env`, `google-services.json`, keystores, or service-account JSON.
+
 Required GitHub repository secrets:
 
 - `GOOGLE_WEB_CLIENT_ID`  
